@@ -4,6 +4,10 @@
 **Status:** DRAFT — awaiting owner review before implementation  
 **Author:** Claude (audit + design)
 
+**Reference docs (read before implementing):**
+- `docs/superpowers/references/antares-patterns.md` — exact DDL, Go types, migration pattern, indexUserTurn logic
+- `docs/superpowers/references/hermes-memory.md` — frozen snapshot pattern, memory tool schema, FTS5 session search, key numbers
+
 ---
 
 ## 1. Goal
