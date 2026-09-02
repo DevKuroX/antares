@@ -16,6 +16,9 @@ Build a complete agentic layer for enowX ChatUI:
 4. **MCP client** — connect to external MCP servers (filesystem, fetch, time, etc.)
 5. **Skills** — inject lightweight skill hints into system prompt
 6. **Plugin middleware** — pre/post hooks for approval gates and output filtering
+7. **Token counting** — count tokens before sending, budget guard to prevent context overflow
+8. **Native vision** — user can attach images to messages (drag-drop or paste)
+9. **Silent compaction** — auto-summarise old turns when context window fills up (like ChatGPT)
 
 All of this is built **on top of** the existing enowX proxy layer — zero changes to
 the proxy, pool, SSE pipeline, or any existing handler.
@@ -359,11 +362,14 @@ the existing endpoint directly.
 ### 10.2 Loop structure (inspired by Antares `agent.Run()`)
 
 ```
-ChatLoop(ctx, sessionID, userMessage):
+ChatLoop(ctx, sessionID, userMessage, attachments[]):
   1. buildSystemPrompt(sessionID)     // 5-section prompt (see §12)
   2. loadMessages(sessionID)          // load history from chatui.db
-  3. appendUserMessage(userMessage)
-  4. Loop (max 10 turns):
+  3. maybeCompact(messages)           // silent compaction if near context limit (see §10.4)
+  4. buildUserMessage(userMessage, attachments)  // text + optional ImageBlockParams
+  5. tokenCount = SDK.CountTokens(systemPrompt, messages, tools)  // see §10.5
+     if tokenCount > modelContextLimit * 0.9 → force compact now
+  6. Loop (max 10 turns):
      a. SDK.Messages.NewStreaming(ctx, {tools: allTools, messages: history})
      b. Stream response tokens to client via SSE
      c. if no tool_use blocks → done, persist assistant message
@@ -375,8 +381,8 @@ ChatLoop(ctx, sessionID, userMessage):
         - runPlugins.AfterToolCall(tool, args, result) → truncate
         - inject tool_result into messages
      e. continue loop with tool results
-  5. persistMessages(sessionID, userMsg, assistantMsg)
-  6. fire-and-forget: indexMemory(sessionID)
+  7. persistMessages(sessionID, userMsg, assistantMsg)
+  8. fire-and-forget: indexMemory(sessionID)
 ```
 
 ### 10.3 Loop limits
@@ -389,6 +395,71 @@ ChatLoop(ctx, sessionID, userMessage):
 | Max tool output (per turn) | 8000 tokens | Context budget protection |
 | Terminal timeout | 30s | User-facing, must feel responsive |
 | web_fetch size cap | 15K chars | ~3750 tokens |
+| Compaction threshold | 90% of model context limit | Trigger before hitting hard wall |
+| Compaction target | Keep last 10 messages intact | Preserve recent context |
+
+### 10.4 Silent Compaction
+
+When the context window approaches the model's limit, ChatUI silently summarises
+old messages in-place — exactly like ChatGPT. The user never sees a hard error;
+the conversation just continues.
+
+```
+maybeCompact(messages, systemPromptTokens):
+  1. Estimate total tokens: systemPromptTokens + sum(message tokens)
+  2. If total < modelContextLimit * 0.85 → skip, nothing to do
+  3. Identify compaction boundary:
+       - Keep: last 10 messages always (recent context is precious)
+       - Compact: everything before that boundary
+  4. SDK call (same model as session):
+       prompt: "Summarise this conversation history concisely.
+                Preserve: key decisions, facts established, code written,
+                errors encountered, current task state.
+                Output: dense factual summary, no filler."
+       input: messages[0..boundary]
+  5. Replace messages[0..boundary] with single synthetic message:
+       role: "user"
+       content: "[Conversation summary]\n{summary}"
+  6. Persist compacted flag on those rows in chatui.db:
+       messages.compacted = true, messages.content = summary (for first row)
+       remaining compacted rows: deleted from DB, not just flagged
+  7. Send SSE event to frontend: {"type": "compacted", "removed": N, "summary_tokens": M}
+     Frontend shows subtle indicator: "Earlier messages summarised"
+```
+
+**Why silent:** User is mid-conversation. Hard stopping with "context full" breaks flow.
+The summary preserves all meaningful context. This is the same approach Antares uses
+(`compaction` in `agent.go`) and what ChatGPT does.
+
+**Compaction model:** same as session model (follows Decision 3 — memory indexing model).
+
+### 10.5 Token Counting
+
+Before every SDK call, count tokens to:
+1. Decide whether compaction is needed (pre-flight check)
+2. Show token usage in UI (optional, Phase 3)
+3. Guard against accidentally sending a request that will fail at the API
+
+```go
+// core/chatui/agent.go
+count, err := sdkClient.Messages.CountTokens(ctx, anthropic.MessageCountTokensParams{
+    Model:    session.Model,
+    System:   []anthropic.TextBlockParam{{Text: systemPrompt}},
+    Messages: messages,
+    Tools:    toolParams,
+})
+// count.InputTokens = total tokens that would be sent
+// Compare against model's known context limit
+```
+
+Model context limits stored in `kv` table as `model.context.<modelID>` (populated
+from `/chatui/api/config` response which already returns model list). Fallback: 100K
+if unknown.
+
+**Note on prompt caching:** The SDK supports `cache_control` blocks for Anthropic-native
+providers (saves cost on repeated system prompts). This is **deferred** — requires
+per-provider detection in enowX proxy to strip `cache_control` for non-Anthropic
+providers. Noted as future improvement when proxy layer supports it.
 
 ---
 
@@ -416,18 +487,20 @@ CREATE INDEX IF NOT EXISTS idx_sessions_updated ON sessions(updated_at DESC);
 
 ```sql
 CREATE TABLE IF NOT EXISTS messages (
-    id          TEXT PRIMARY KEY,
-    session_id  TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
-    seq         INTEGER NOT NULL,
-    role        TEXT NOT NULL CHECK(role IN ('user','assistant','system','tool')),
-    content     TEXT NOT NULL DEFAULT '',
-    reasoning   TEXT,
-    tool_calls  TEXT,    -- JSON array of tool_use blocks
-    tool_results TEXT,   -- JSON array of tool_result blocks
-    model       TEXT,
-    tokens_in   INTEGER NOT NULL DEFAULT 0,
-    tokens_out  INTEGER NOT NULL DEFAULT 0,
-    created_at  DATETIME NOT NULL DEFAULT (datetime('now')),
+    id           TEXT PRIMARY KEY,
+    session_id   TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+    seq          INTEGER NOT NULL,
+    role         TEXT NOT NULL CHECK(role IN ('user','assistant','system','tool')),
+    content      TEXT NOT NULL DEFAULT '',
+    reasoning    TEXT,
+    tool_calls   TEXT,        -- JSON array of tool_use blocks
+    tool_results TEXT,        -- JSON array of tool_result blocks
+    attachments  TEXT,        -- JSON array of {type:"image", media_type, data_b64|url}
+    compacted    BOOLEAN NOT NULL DEFAULT 0,  -- true if this row is a compaction summary
+    model        TEXT,
+    tokens_in    INTEGER NOT NULL DEFAULT 0,
+    tokens_out   INTEGER NOT NULL DEFAULT 0,
+    created_at   DATETIME NOT NULL DEFAULT (datetime('now')),
     UNIQUE(session_id, seq)
 );
 CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id, seq);
@@ -575,13 +648,14 @@ POST   /chatui/api/sessions/:id/messages  append message
 ```
 POST   /chatui/api/chat/stream            SSE agentic loop
   SSE event types:
-    {"type": "text_delta",         "delta": "..."}
-    {"type": "thinking_delta",     "delta": "..."}
-    {"type": "tool_start",         "tool": "web_search", "args": {...}}
-    {"type": "tool_result",        "tool": "web_search", "result": "..."}
-    {"type": "tool_approval_required", "tool": "terminal", "args": {...}, "approval_id": "..."}
-    {"type": "done",               "tokens_in": N, "tokens_out": N}
-    {"type": "error",              "message": "..."}
+    {"type": "text_delta",              "delta": "..."}
+    {"type": "thinking_delta",          "delta": "..."}
+    {"type": "tool_start",              "tool": "web_search", "args": {...}}
+    {"type": "tool_result",             "tool": "web_search", "result": "..."}
+    {"type": "tool_approval_required",  "tool": "terminal", "args": {...}, "approval_id": "..."}
+    {"type": "compacted",               "removed": N, "summary_tokens": M}
+    {"type": "done",                    "tokens_in": N, "tokens_out": N}
+    {"type": "error",                   "message": "..."}
 
 POST   /chatui/api/chat/approve/:approval_id   approve a pending tool call
 POST   /chatui/api/chat/deny/:approval_id      deny a pending tool call
@@ -632,9 +706,10 @@ PATCH  /chatui/api/settings               update settings
 ### 15.1 `useChat.ts` — switch to agentic endpoint (Phase 2)
 
 ```typescript
-// If session.tools_enabled:
+// If global tools_enabled:
 //   POST /chatui/api/chat/stream (new agentic SSE)
-//   Handle new SSE event types: tool_start, tool_result, tool_approval_required
+//   Handle SSE event types: text_delta, thinking_delta, tool_start, tool_result,
+//                           tool_approval_required, compacted, done, error
 // Else:
 //   Continue using /anthropic/v1/messages directly (existing, untouched)
 ```
@@ -647,12 +722,37 @@ PATCH  /chatui/api/settings               update settings
 // POST /chatui/api/sessions/:id/messages after each turn
 ```
 
-### 15.3 New components (Phase 2)
+### 15.3 Native vision — image attachments (Phase 2)
+
+User can attach images via drag-drop, clipboard paste (Ctrl+V), or file picker.
+
+```typescript
+// ChatInput.tsx additions:
+// - onPaste: detect image/* → read as base64, add to attachments[]
+// - onDrop: same
+// - file picker button: accept="image/png,image/jpeg,image/webp,image/gif"
+// - attachment preview: thumbnails above input, × to remove
+// - size limit: 5 MB per image, max 3 images per message (frontend enforced)
+
+// Sent to /chatui/api/chat/stream:
+{
+  session_id: "...",
+  message: "What's in this image?",
+  attachments: [{ type: "image", media_type: "image/png", data_b64: "..." }]
+}
+```
+
+Backend converts to `anthropic.ImageBlockParam` before SDK call. Images stored in
+`messages.attachments` JSON column and re-sent on context reload for follow-up turns.
+
+### 15.4 New components (Phase 2)
 
 | Component | Purpose |
 |---|---|
 | `ToolCallBlock.tsx` | Show tool name + args + result inline in message |
 | `ApprovalDialog.tsx` | Approval gate UI for terminal + write_file |
+| `ImageAttachment.tsx` | Thumbnail preview + remove button in input area |
+| `CompactedBanner.tsx` | Subtle "Earlier messages summarised" indicator |
 | `MemoryPanel.tsx` | Sidebar panel showing session memories |
 
 ---
@@ -665,13 +765,15 @@ PATCH  /chatui/api/settings               update settings
 - Frontend: `useSessions.ts` + `useChat.ts` hybrid API/localStorage
 - **Result:** history survives browser clear
 
-### Phase 2 — Memory + Tools
+### Phase 2 — Memory + Tools + Vision + Compaction
 - Anthropic SDK (`github.com/anthropics/anthropic-sdk-go`)
 - `core/chatui/` package: agent loop, 8 tools, plugins, memory indexer
+- **Token counting** — pre-flight check before every SDK call
+- **Silent compaction** — auto-summarise when context hits 85% of limit
+- **Native vision** — image attachments via drag-drop/paste
 - New `/chatui/api/chat/stream` agentic endpoint
-- Tool UI: `ToolCallBlock`, `ApprovalDialog`
-- Memory indexer (background goroutine)
-- Memory API + `MemoryPanel` UI
+- Tool UI: `ToolCallBlock`, `ApprovalDialog`, `ImageAttachment`, `CompactedBanner`
+- Memory indexer (background goroutine) + `MemoryPanel` UI
 - **Result:** Claude can use tools + remember things across sessions
 
 ### Phase 3 — MCP + Skills
