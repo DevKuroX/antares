@@ -216,14 +216,30 @@ same approval gate and output truncation.
 
 ### 7.3 Config
 
-MCP servers are configured in `chatui.db` `kv` table:
+MCP servers are configured in `chatui.db` `kv` table under key `mcp.servers`.
+Both stdio and HTTP transports are supported:
 
-```
-kv_key = "mcp.servers"
-kv_value = [{"id": "filesystem", "transport": "stdio", "command": "npx", "args": ["-y", "@modelcontextprotocol/server-filesystem", "/home/user"]}]
+```json
+[
+  {
+    "id": "filesystem",
+    "transport": "stdio",
+    "command": "npx",
+    "args": ["-y", "@modelcontextprotocol/server-filesystem", "/home/user"]
+  },
+  {
+    "id": "my-remote-server",
+    "transport": "http",
+    "url": "http://localhost:3000/mcp"
+  }
+]
 ```
 
-User can add/remove servers via `/chatui/api/mcp/servers` endpoints (Phase 3).
+Both transports use JSON-RPC 2.0. stdio: newline-delimited on stdin/stdout.
+HTTP: `POST /mcp` for requests, `GET /mcp` with `Accept: text/event-stream` for
+streaming. Tools from both transports land in the registry as
+`mcp__<serverId>__<toolName>` and go through the same approval gate and
+output truncation as built-in tools.
 
 ---
 
@@ -389,10 +405,10 @@ CREATE TABLE IF NOT EXISTS sessions (
     tokens_in     INTEGER NOT NULL DEFAULT 0,
     tokens_out    INTEGER NOT NULL DEFAULT 0,
     archived      BOOLEAN NOT NULL DEFAULT 0,
-    tools_enabled BOOLEAN NOT NULL DEFAULT 0,
     created_at    DATETIME NOT NULL DEFAULT (datetime('now')),
     updated_at    DATETIME NOT NULL DEFAULT (datetime('now'))
 );
+-- No tools_enabled column — tool use is a global setting (kv: chatui.tools_enabled)
 CREATE INDEX IF NOT EXISTS idx_sessions_updated ON sessions(updated_at DESC);
 ```
 
@@ -447,13 +463,31 @@ CREATE TABLE IF NOT EXISTS kv (
     kv_value TEXT NOT NULL
 );
 -- Keys used:
---   schema_version          "1", "2", ...
---   chatui.active_session   last active session ID
---   skills.enabled          JSON array of enabled skill names
---   mcp.servers             JSON array of MCP server configs
+--   schema_version             "1", "2", ...
+--   chatui.active_session      last active session ID
+--   chatui.tools_enabled       "true" | "false"  (global tool use toggle, default "false")
+--   chatui.workspace_dir       absolute path, default $HOME
+--   mcp.servers                JSON array of MCP server configs
 ```
 
-### 11.5 Migration strategy
+### 11.5 `skills`
+
+```sql
+CREATE TABLE IF NOT EXISTS skills (
+    name        TEXT PRIMARY KEY,
+    description TEXT NOT NULL DEFAULT '',
+    triggers    TEXT NOT NULL DEFAULT '[]',   -- JSON array of trigger keywords
+    category    TEXT NOT NULL DEFAULT '',
+    enabled     BOOLEAN NOT NULL DEFAULT 1,
+    source      TEXT NOT NULL DEFAULT 'builtin',  -- 'builtin' | 'user'
+    file_path   TEXT NOT NULL DEFAULT '',          -- absolute path to .md file
+    updated_at  DATETIME NOT NULL DEFAULT (datetime('now'))
+);
+-- Populated/synced from .md files on startup and on /chatui/api/skills/reload
+-- content lives in the .md file; DB stores metadata + enable state only
+```
+
+### 11.6 Migration strategy
 
 ```go
 // On startup: run only new migrations
@@ -504,18 +538,19 @@ Runs as a background goroutine after each turn. Fire-and-forget, never blocks UI
 indexMemory(sessionID):
   1. Rate-limit check: last indexed < 30s ago? skip.
   2. Load last user + assistant message pair from chatui.db.
-  3. SDK call (base_url → enowX proxy):
-       model: claude-haiku-4 (cheapest/fastest)
+  3. Load session.model from chatui.db (use same model as session).
+  4. SDK call (base_url → enowX proxy):
+       model: session.model  ← follows session, not hardcoded
        max_tokens: 500
        prompt: "Extract 3-5 durable facts from this exchange.
                 Return JSON: [{"key": "...", "fact": "..."}]"
-  4. Parse JSON response.
-  5. For each fact → upsert memories table:
+  5. Parse JSON response.
+  6. For each fact → upsert memories table:
        scope="session", scope_key=sessionID, source="chatui-auto"
-  6. Upsert user-level summary:
+  7. Upsert user-level summary:
        scope="user", scope_key="local"
        key="summary-{sessionID}", content=one-line topic summary
-  7. On any error: log, discard silently (memories are supplementary)
+  8. On any error: log, discard silently (memories are supplementary)
 ```
 
 ---
@@ -574,8 +609,20 @@ POST   /chatui/api/mcp/servers/:id/test   test connection
 ### Skills (Phase 3)
 
 ```
-GET    /chatui/api/skills                 list all skills
-PATCH  /chatui/api/skills/:name           toggle enabled
+GET    /chatui/api/skills                 list all skills (from DB)
+PATCH  /chatui/api/skills/:name           toggle enabled {enabled: bool}
+POST   /chatui/api/skills/reload          resync DB from .md files on disk
+```
+
+### Settings
+
+```
+GET    /chatui/api/settings               get all settings
+  Response: {"data": {"tools_enabled": bool, "workspace_dir": string}}
+
+PATCH  /chatui/api/settings               update settings
+  Body: {"tools_enabled"?: bool, "workspace_dir"?: string}
+  Response: {"data": {"tools_enabled": bool, "workspace_dir": string}}
 ```
 
 ---
@@ -697,8 +744,9 @@ server/handlers/
   chatui_sessions.go — session CRUD + message append
   chatui_chat.go     — POST /chatui/api/chat/stream (SSE)
   chatui_memory.go   — memory read/write/search
+  chatui_settings.go — GET/PATCH /chatui/api/settings (tools_enabled, workspace_dir)
   chatui_mcp.go      — MCP server management (Phase 3)
-  chatui_skills.go   — skill enable/disable (Phase 3)
+  chatui_skills.go   — skill enable/disable + reload (Phase 3)
 
 web/src/chatui/
   ToolCallBlock.tsx  — tool call display in message thread
@@ -722,25 +770,45 @@ Any other existing file     — untouched
 
 ---
 
-## 20. Open Questions for Owner
+## 20. Decisions (Resolved)
 
-1. **Phase 2 scope — tools_enabled per session or global?**
-   Proposal: per-session toggle (`tools_enabled` column). Default off. User enables
-   per-session when they want Claude to use tools. This keeps simple chat fast and cheap.
+| # | Question | Decision |
+|---|---|---|
+| 1 | tools_enabled per-session or global? | **Global** — one toggle for all sessions, stored in `kv` table as `chatui.tools_enabled` |
+| 2 | Terminal workspace scoping? | **User-configurable** — stored in `kv` as `chatui.workspace_dir`, default `$HOME`. Shown in ChatUI settings. |
+| 3 | Memory indexing model? | **Follows session model** — whatever model the session was using, same model for indexing that turn |
+| 4 | MCP transport — stdio only or HTTP also? | **Both** — stdio for local subprocesses, HTTP/SSE for remote servers. Both in Phase 3. |
+| 5 | Skills storage — files only or also DB? | **Both** — `.md` files in `$ENOWX_RUNTIME_DIR/chatui/skills/` for content, `skills` table in `chatui.db` for metadata + enable/disable state |
 
-2. **Terminal tool — workspace scoping?**
-   Which directory should `terminal` and `read_file`/`write_file` be scoped to?
-   Options: (a) `$HOME`, (b) user-configurable workspace dir, (c) no restriction
-   (rely only on approval gate). Proposal: user-configurable, default `$HOME`.
+### Implications of decisions
 
-3. **Memory indexing model — haiku always, or follow session model?**
-   Proposal: always use the cheapest/fastest available model (haiku-4 class).
-   Memory indexing is background summarisation — it doesn't need the best model.
+**Decision 1 (global tools_enabled):**
+- Remove `tools_enabled` column from `sessions` table
+- Add `kv` key `chatui.tools_enabled = "true"|"false"` (default `"false"`)
+- Settings UI shows one global toggle: "Enable tool use"
+- All new sessions inherit the global setting
 
-4. **MCP in Phase 3 — stdio only or HTTP also?**
-   stdio is simpler (spawn subprocess). HTTP needed for remote MCP servers.
-   Proposal: stdio only in Phase 3, HTTP in Phase 4.
+**Decision 2 (user-configurable workspace):**
+- `kv` key `chatui.workspace_dir` — default `$HOME`
+- `read_file`, `write_file`, `list_files`, `grep` are scoped to this dir (no `../` traversal)
+- `terminal` CWD is set to this dir; still requires approval gate
+- Configurable via `/chatui/api/settings` endpoint (see §14 addition below)
 
-5. **Skills storage — files only or also DB?**
-   Proposal: files in `$ENOWX_RUNTIME_DIR/chatui/skills/*.md`, enable/disable state
-   in `kv` table. Simple, editable, no extra table needed.
+**Decision 3 (memory indexing follows session model):**
+- Memory indexer receives `model` from the session record in chatui.db
+- Uses that same model for the summarisation call via SDK → enowX proxy
+- No hardcoded model name — whatever model was active when the turn ended
+
+**Decision 4 (MCP: both stdio and HTTP):**
+- `transport` field in MCP server config: `"stdio"` or `"http"`
+- stdio: `{"transport": "stdio", "command": "npx", "args": [...]}`
+- HTTP: `{"transport": "http", "url": "http://localhost:3000/mcp"}`
+- Both transports share the same JSON-RPC 2.0 + tools/list handshake
+- Both land tools in registry as `mcp__<serverId>__<toolName>`
+
+**Decision 5 (skills: files + DB table):**
+- New `skills` table in `chatui.db` (see updated §11 below)
+- `.md` files are the source of truth for content
+- DB table stores: name, enabled, category, triggers (denormalized for fast query)
+- On startup: scan skill files → upsert `skills` table (sync)
+- User edits `.md` file → restart or POST `/chatui/api/skills/reload` to resync
