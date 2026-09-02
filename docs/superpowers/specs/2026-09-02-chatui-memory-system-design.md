@@ -1,4 +1,4 @@
-# enowX ChatUI Memory System — Design Spec
+# enowX ChatUI Memory + Tools System — Design Spec
 
 **Date:** 2026-09-02  
 **Status:** DRAFT — awaiting owner review before implementation  
@@ -8,233 +8,406 @@
 
 ## 1. Goal
 
-Give enowX ChatUI persistent, searchable chat history backed by a dedicated
-SQLite store (`chatui.db`), plus a memory layer that summarises conversations
-into durable facts — so a future memory system can read all history by session
-or by user.
+Build a complete agentic layer for enowX ChatUI:
 
-The ChatUI today stores everything in `localStorage`. This spec migrates that to
-a proper DB layer and adds REST endpoints to enowX that the ChatUI frontend calls.
+1. **Persistent sessions** — chat history in SQLite (`chatui.db`), survives browser clear
+2. **Memory system** — summarise turns into durable facts, recall across sessions
+3. **Tool use** — Claude can use 8 tools (web search, file ops, terminal, memory)
+4. **MCP client** — connect to external MCP servers (filesystem, fetch, time, etc.)
+5. **Skills** — inject lightweight skill hints into system prompt
+6. **Plugin middleware** — pre/post hooks for approval gates and output filtering
 
----
-
-## 2. What This Spec Is (and Is Not)
-
-### This spec is:
-- A persistent session + message store for ChatUI, backed by SQLite
-- A memory indexing pipeline that uses the **Anthropic SDK** to summarise turns
-- A set of REST endpoints added to enowX Go server for ChatUI to call
-- A reference to Antares architecture patterns (not a port of Antares code)
-
-### This spec is NOT:
-- A port of Antares code into enowX
-- A change to enowX's core proxy, SSE pipeline, account pool, or model routing
-- An import of `github.com/enowdev/antares` as a dependency
-- Anything that touches port 1430 (production)
-
-**Hard rule:** enowX proxy layer (`/anthropic/v1/messages`, `/v1/messages`, account pool,
-model routing, SSE pipeline) is **never touched**. It runs as-is on `:1430` and `:1431`.
+All of this is built **on top of** the existing enowX proxy layer — zero changes to
+the proxy, pool, SSE pipeline, or any existing handler.
 
 ---
 
-## 3. Architecture
+## 2. Hard Rules (Non-Negotiable)
 
-### 3.1 The two layers
+```
+NEVER touch:
+  - enowX core proxy (/anthropic/v1/*, /v1/*)
+  - Account pool, model routing, retry logic
+  - SSE streaming pipeline
+  - Port 1430 (production)
+  - /usr/local/bin/enx
+  - enowX store/sqlite/ (existing enowx.db)
+  - Antares codebase (zero dependency, zero import)
+```
+
+Antares = **architecture reference only**. We study its patterns and build
+our own simpler implementation. No `github.com/enowdev/antares` import.
+
+---
+
+## 3. Two-Layer Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│  ChatUI Backend (new code in enowX Go server)                   │
+│  ChatUI Agentic Layer (new code in enowX)                       │
 │                                                                  │
-│  Memory indexing uses Anthropic SDK:                            │
+│  Tools, MCP, Skills, Memory all use Anthropic SDK:             │
 │                                                                  │
 │    anthropic.NewClient(                                         │
-│      option.WithAPIKey("enx-..."),                              │
+│      option.WithAPIKey("dummy"),                                │
 │      option.WithBaseURL("http://localhost:<ENOWX_PORT>"),       │
 │    )                                                            │
 │                                                                  │
-│  SDK calls /anthropic/v1/messages on enowX.                     │
-│  SDK never knows about account pool.                            │
-│  enowX pool handles routing, retry, usage tracking.             │
+│  SDK → /anthropic/v1/messages on enowX                         │
+│  SDK never knows about account pool                             │
+│  enowX pool handles routing + retry + usage tracking           │
 │                                                                  │
 └────────────────────────┬────────────────────────────────────────┘
                          │ POST /anthropic/v1/messages
-                         │ (Anthropic wire format)
+                         │ (standard Anthropic wire format)
 ┌────────────────────────▼────────────────────────────────────────┐
 │  enowX proxy (UNTOUCHED)                                        │
-│  Account pool, model routing, retry, SSE pipeline               │
-│  Handles /anthropic/v1/* and /v1/* as-is today                  │
+│  Account pool · model routing · retry · SSE pipeline            │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-The SDK is configured with `base_url` pointing at enowX itself — so all LLM calls
-from the memory indexer go through the same account pool as chat, with zero changes
-to the proxy layer.
+---
 
-### 3.2 Full system diagram
+## 4. System Diagram
 
 ```
-┌──────────────────────────────────────────────────────────────┐
-│  Browser                                                      │
-│  enowX ChatUI (React SPA at /chatui/)                        │
-│    useSessions  ←─ REST ─→  /chatui/api/sessions/*           │
-│    useChat      ←─ SSE  ─→  /anthropic/v1/messages           │
-└──────────────────────────────────────────────────────────────┘
-         │ HTTP (same origin)
-┌────────▼─────────────────────────────────────────────────────┐
-│  enowX Go server (:1430 / :1431)                             │
-│                                                               │
-│  NEW: server/handlers/chatui_sessions.go                     │
-│    GET    /chatui/api/sessions          list                  │
-│    POST   /chatui/api/sessions          create                │
-│    GET    /chatui/api/sessions/:id      get + messages        │
-│    PATCH  /chatui/api/sessions/:id      update title/model   │
-│    DELETE /chatui/api/sessions/:id      delete               │
-│    POST   /chatui/api/sessions/:id/messages  append msg      │
-│                                                               │
-│  NEW: server/handlers/chatui_memory.go                       │
-│    POST   /chatui/api/sessions/:id/index     memory indexing │
-│    GET    /chatui/api/sessions/:id/memories  session memories│
-│    GET    /chatui/api/memories?q=...         search all      │
-│                                                               │
-│  EXISTING: /chatui/api/config           key + models         │
-│  EXISTING: /anthropic/v1/messages       LLM proxy (untouched)│
-│                                                               │
-│  NEW: store/chatui/                                          │
-│    store.go          — Store interface                        │
-│    sqlite.go         — modernc SQLite implementation          │
-│    migrations.go     — embedded DDL                           │
-│    types.go          — Session, Message, Memory types         │
-└──────────────────────────────────────────────────────────────┘
-         │ SQLite (WAL mode)
-┌────────▼─────────────────────────────────────────────────────┐
-│  chatui.db  (separate file — NOT enowX's enowx.db)           │
-│  Default: ~/.enowx/chatui.db  (same dir as enowx.db)         │
-│  Dev:     ~/.enowx-dev/chatui.db                             │
-│                                                               │
-│  Tables (own DDL, inspired by Antares schema design):        │
-│    sessions       (id, title, model, message_count, ...)     │
-│    messages       (id, session_id, seq, role, content, ...)  │
-│    memories       (id, scope, scope_key, key, content, ...)  │
-│    kv             (kv_key, kv_value)                         │
-└──────────────────────────────────────────────────────────────┘
+Browser
+  ChatUI SPA (/chatui/)
+    useSessions ←── REST ──→ /chatui/api/sessions/*
+    useChat     ←── SSE  ──→ /chatui/api/chat/stream   (new agentic endpoint)
+                             (internally uses SDK → enowX proxy)
+
+enowX Go server (:1430/:1431)
+  ┌─ NEW: server/handlers/chatui_sessions.go
+  │    GET/POST/PATCH/DELETE /chatui/api/sessions/*
+  │    POST /chatui/api/sessions/:id/messages
+  │
+  ├─ NEW: server/handlers/chatui_chat.go
+  │    POST /chatui/api/chat/stream  ← agentic loop (SDK + tools)
+  │
+  ├─ NEW: server/handlers/chatui_memory.go
+  │    POST /chatui/api/sessions/:id/index
+  │    GET  /chatui/api/sessions/:id/memories
+  │    GET  /chatui/api/memories?q=...
+  │
+  ├─ NEW: core/chatui/
+  │    agent.go       — agentic loop (SDK streaming + tool dispatch)
+  │    tools.go       — 8 built-in tool implementations
+  │    mcp.go         — MCP client (stdio + HTTP transports)
+  │    skills.go      — skill loader + system prompt injection
+  │    plugins.go     — plugin middleware (pre/post hooks)
+  │    memory.go      — memory indexer (background goroutine)
+  │
+  └─ NEW: store/chatui/
+       store.go       — ChatStore interface
+       sqlite.go      — modernc SQLite implementation
+       migrations.go  — embedded DDL
+       types.go       — Session, Message, Memory, Skill types
+
+chatui.db  (~/.enowx/chatui.db, separate from enowx.db)
+  sessions · messages · memories · skills · kv
 ```
 
 ---
 
-## 4. Why Separate `chatui.db`
+## 5. Antares Reference Map
 
-1. **No migration coupling** — enowX DB (`enowx.db`) uses numbered migrations managed
-   by enowX. ChatUI has different schema needs and different migration cadence.
-2. **No Antares dependency** — we write our own DDL inspired by Antares patterns
-   (same table shapes, same field names where it makes sense), but we don't import
-   any Antares package.
-3. **Independent lifecycle** — ChatUI DB can be wiped, backed up, or migrated
-   without touching the core enowX DB.
-4. **Single file, one concern** — all ChatUI state (sessions, messages, memories) in
-   one place, easy to reason about.
+What we studied in Antares and what we take from each domain:
+
+| Domain | Antares has | What we build in ChatUI |
+|---|---|---|
+| **Store** | `sessions` + `messages` tables | Same field shapes, own DDL, own migrations |
+| **Memory** | `memories` table: scope/scope_key/key/content + FTS | Identical table design, own migration |
+| **Memory indexing** | `indexUserTurn()` → LLM summarise → write memories | Same pipeline, Anthropic SDK for LLM call |
+| **Tools** | ~81 built-in tools, typed schemas, approval gates | 8 tools (scoped for conversational chat) |
+| **MCP client** | stdio + HTTP transports, JSON-RPC 2.0, tools/list | Same protocol, simpler client (6 servers) |
+| **Skills** | Markdown files, YAML front matter, PromptBlock injection | Same concept: `.md` files injected as hints |
+| **Plugins** | pre/post hooks, stdin/stdout JSON protocol | Simplified: Go interface, no subprocess |
+| **Agent loop** | max 50 turns, parallel tool calls, approval gate | Simpler: max 10 turns, serial tool calls |
+| **System prompt** | 13-section builder, SOUL.md, RAG injection | Simpler 5-section builder (no SOUL, no RAG in P2) |
+| **Migration** | Re-runs all DDL every startup (no version table) | `schema_version` KV key — run only new migrations |
 
 ---
 
-## 5. Antares as Architecture Reference
+## 6. Tool System
 
-We studied Antares's implementation across these domains and extracted the patterns
-we want to replicate — without importing the code:
+### 6.1 Tool inventory (8 tools, Phase 2)
 
-| Domain | Antares pattern we reference | What we do in enowX ChatUI |
-|---|---|---|
-| **Store** | `sessions` + `messages` tables, dual-dialect (SQLite/Postgres) | Own SQLite-only DDL with same field shapes |
-| **Memory** | `memories` table: scope/scope_key/key/content, FTS | Same table design, own migration |
-| **Memory indexing** | `indexUserTurn()` → LLM summarise → write `memories` rows | Same pipeline, but uses Anthropic SDK via enowX proxy |
-| **RAG** | `rag_chunks` + `UserCollection(platform, userID)` | Deferred to Phase 3; same collection naming concept |
-| **Migration** | Re-runs all DDL on startup (Antares has no version table) | We add a `schema_version` KV key — run only new migrations |
-| **Skills injection** | Loads skill text from `skills` table, injects into system prompt | Phase 2+; concept borrowed, implementation simpler |
+| Tool | Description | Max output tokens | Guard |
+|---|---|---|---|
+| **`memory`** | Save / search / list facts across sessions. Actions: `save`, `search`, `list`, `delete`. | 500 | None |
+| **`web_search`** | Web search, 8 results default. Returns title + snippet + URL per result. | 1500 | None |
+| **`web_fetch`** | Fetch a URL, convert to plain text. Hard cap: 15K chars output. | 3000 | Size cap |
+| **`read_file`** | Read a file from workspace. Default 200 lines, hard cap 400 lines. | 2000 | Size cap |
+| **`write_file`** | Write or create a file. Returns confirmation only. | 100 | Approval |
+| **`list_files`** | List directory contents. Skips `.git`, `node_modules`. Max depth 3. | 500 | None |
+| **`grep`** | Regex search across files. Max 50 matches returned. | 1000 | None |
+| **`terminal`** | Execute shell command. Timeout 30s. Output truncated to 3000 tokens. | 3000 | Approval + timeout |
 
-### What we do NOT port from Antares:
-- MCP protocol implementation
-- Plugin sidecar lifecycle
-- Role/soul system (24 roles)
-- Agent loop (`ragcontext.go` full implementation)
-- Roles, pairings, social accounts
-- Antares server/HTTP layer
-- Postgres support (SQLite only for ChatUI)
+**Total tool schema tokens in system prompt:** ~800 tokens (all 8 tool descriptions)
 
----
+### 6.2 Approval gate
 
-## 6. Anthropic SDK Integration
+Tools marked **Approval** (`write_file`, `terminal`) require explicit user confirmation
+before execution. In the agentic loop:
 
-### Why SDK (not hand-rolled HTTP)?
+```
+1. Claude proposes tool call
+2. Server sends SSE event: {"type": "tool_approval_required", "tool": "terminal", "args": {...}}
+3. Frontend shows approval dialog to user
+4. User approves → server executes → result injected into context
+5. User denies  → server injects tool_result with "User denied execution"
+```
 
-| | Hand-rolled HTTP | Anthropic SDK |
-|---|---|---|
-| SSE streaming | Write `bufio.Scanner` + `data:` parser | Built-in, edge cases handled |
-| Tool use | Manual JSON marshal/unmarshal | Typed structs |
-| Extended thinking | Manual `thinking` block parse | First-class field |
-| Error types | `if status == 429` | `anthropic.RateLimitError` |
-| Retry | Implement from scratch | Built-in exponential backoff |
-| Future Claude versions | Re-implement for each | Auto-supported |
+### 6.3 Output truncation
 
-### How it routes through enowX without touching the pool
+Every tool result is truncated before injecting into the context window:
 
 ```go
-// store/chatui/indexer.go
-
-import anthropic "github.com/anthropics/anthropic-sdk-go"
-import "github.com/anthropics/anthropic-sdk-go/option"
-
-func newIndexerClient(enowxBaseURL string) *anthropic.Client {
-    return anthropic.NewClient(
-        option.WithAPIKey("dummy"),           // enowX ignores the key for local calls
-        option.WithBaseURL(enowxBaseURL),     // → http://localhost:1431 (or 1430 in prod)
-    )
-}
-
-// SDK sends: POST http://localhost:1431/anthropic/v1/messages
-// enowX proxy receives it as a normal Anthropic-format request
-// Routes through account pool, picks a real API key, forwards upstream
-// Streams response back to SDK
-// SDK never knows about the pool
+const (
+    MaxToolOutputTokens = 3000  // hard cap per tool call
+    MaxTotalToolTokens  = 8000  // hard cap per turn (sum of all tool results)
+)
 ```
 
-**Critical:** `enowxBaseURL` comes from config (`ENOWX_PORT` env var), not hardcoded.
-In production this points at `:1430`; in dev at `:1431`.
+If truncated, a note is appended: `[output truncated — 3000 token limit reached]`
 
-### What the SDK is used for (Phase 2 only)
+### 6.4 Tool registration
 
-Memory indexing only — not for the main chat flow. The main chat in ChatUI already
-works via the existing `/anthropic/v1/messages` SSE endpoint. The SDK is used by
-the background memory indexer goroutine to summarise conversation turns.
+Each tool implements:
+
+```go
+type Tool interface {
+    Name() string
+    Description() string
+    InputSchema() json.RawMessage   // JSON Schema for Anthropic tool_use
+    Execute(ctx context.Context, input json.RawMessage) (string, error)
+    RequiresApproval() bool
+}
+```
+
+Tools are registered at startup and their schemas are included in every
+Anthropic SDK request via `anthropic.ToolParam{}` array.
 
 ---
 
-## 7. Database Schema
+## 7. MCP Client
 
-### 7.1 `sessions` table
+### 7.1 Protocol
+
+- JSON-RPC 2.0 over stdio (subprocess) or HTTP/SSE
+- Protocol version: `2024-11-05`
+- Handshake: `initialize` → `notifications/initialized` → `tools/list`
+- Tool naming: `mcp__<serverId>__<toolName>`
+
+### 7.2 Supported servers (Phase 3)
+
+| Server ID | Transport | What it provides |
+|---|---|---|
+| `filesystem` | stdio | Read/write files under scoped dirs |
+| `fetch` | stdio | URL fetcher (robots-aware) |
+| `memory` | stdio | Persistent entity/relation knowledge graph |
+| `sequential-thinking` | stdio | Branching reasoning scratchpad |
+| `time` | stdio | Current time + timezone conversion |
+| `brave-search` | stdio | Web search (requires Brave API key) |
+
+MCP tools appear in the tool list alongside built-in tools. They go through the
+same approval gate and output truncation.
+
+### 7.3 Config
+
+MCP servers are configured in `chatui.db` `kv` table:
+
+```
+kv_key = "mcp.servers"
+kv_value = [{"id": "filesystem", "transport": "stdio", "command": "npx", "args": ["-y", "@modelcontextprotocol/server-filesystem", "/home/user"]}]
+```
+
+User can add/remove servers via `/chatui/api/mcp/servers` endpoints (Phase 3).
+
+---
+
+## 8. Skills System
+
+### 8.1 What skills are
+
+Lightweight Markdown files with YAML front matter. Injected as a compact
+hint block in the system prompt — **not** full content, just name + description + triggers.
+
+```markdown
+---
+name: systematic-debugging
+description: Diagnose bugs step by step
+triggers: [debug, error, exception, traceback, not working]
+enabled: true
+---
+# Systematic Debugging
+...full content only loaded on demand...
+```
+
+### 8.2 System prompt injection
+
+At session start, enabled skills inject as ~15 tokens each:
+
+```
+## Your skills
+
+- systematic-debugging: Diagnose bugs step by step (use when: debug, error, exception)
+- code-review: Review code for bugs and issues (use when: review, PR, quality)
+- web-research: Research a topic thoroughly (use when: research, find out, learn about)
+```
+
+**Token cost:** 6 default skills × ~20 tokens = **~120 tokens** — negligible.
+
+### 8.3 Built-in skills (6 defaults, Phase 3)
+
+| Skill | Triggers |
+|---|---|
+| `systematic-debugging` | debug, error, traceback, not working |
+| `code-review` | review, PR, quality, audit |
+| `web-research` | research, find out, learn about, explain |
+| `writing-clearly` | write, document, explain, summarize |
+| `test-driven-development` | test, TDD, coverage, spec |
+| `git-workflow` | git, commit, branch, merge |
+
+### 8.4 Storage
+
+Skills stored as `.md` files in `$ENOWX_RUNTIME_DIR/chatui/skills/`.
+Enable/disable state stored in `chatui.db` `kv` table:
+```
+kv_key = "skills.enabled"
+kv_value = ["systematic-debugging", "code-review", ...]
+```
+
+---
+
+## 9. Plugin Middleware
+
+### 9.1 What plugins are (vs Antares)
+
+Antares plugins = external subprocess with stdin/stdout JSON protocol.
+ChatUI plugins = **Go interface** — no subprocess, no IPC overhead.
+
+Simpler, faster, sufficient for ChatUI's needs.
+
+### 9.2 Plugin interface
+
+```go
+type Plugin interface {
+    Name() string
+    BeforeToolCall(ctx context.Context, toolName string, args json.RawMessage) (PluginDecision, error)
+    AfterToolCall(ctx context.Context, toolName string, args json.RawMessage, result string) (string, error)
+}
+
+type PluginDecision struct {
+    Allow     bool
+    DenyReason string     // if !Allow
+    ModifiedArgs json.RawMessage  // optional: replace args
+}
+```
+
+### 9.3 Built-in plugins (Phase 2)
+
+| Plugin | Hook | What it does |
+|---|---|---|
+| `ApprovalGate` | Before `write_file`, `terminal` | Blocks execution until user confirms |
+| `OutputTruncator` | After all tools | Truncates output to `MaxToolOutputTokens` |
+| `WebFetchCleaner` | After `web_fetch` | Strips HTML remnants, compresses whitespace |
+
+### 9.4 Plugin chain
+
+Plugins run in order. `BeforeToolCall`: first denier wins (stops chain).
+`AfterToolCall`: result is threaded through all plugins sequentially.
+
+---
+
+## 10. Agentic Chat Loop
+
+### 10.1 New endpoint
+
+```
+POST /chatui/api/chat/stream
+Body: {
+  "session_id": "...",
+  "message": "...",
+  "model": "claude-opus-4-5",
+  "system_extra": "..."   // optional extra system prompt
+}
+Response: SSE stream
+```
+
+This replaces the current direct `/anthropic/v1/messages` call from `useChat.ts`
+for sessions that have tool use enabled. Sessions without tools continue using
+the existing endpoint directly.
+
+### 10.2 Loop structure (inspired by Antares `agent.Run()`)
+
+```
+ChatLoop(ctx, sessionID, userMessage):
+  1. buildSystemPrompt(sessionID)     // 5-section prompt (see §12)
+  2. loadMessages(sessionID)          // load history from chatui.db
+  3. appendUserMessage(userMessage)
+  4. Loop (max 10 turns):
+     a. SDK.Messages.NewStreaming(ctx, {tools: allTools, messages: history})
+     b. Stream response tokens to client via SSE
+     c. if no tool_use blocks → done, persist assistant message
+     d. for each tool_use block:
+        - runPlugins.BeforeToolCall(tool, args)
+          → if denied: inject tool_result "denied: <reason>", continue
+          → if needs approval: send SSE approval_required event, wait
+        - tool.Execute(ctx, args)
+        - runPlugins.AfterToolCall(tool, args, result) → truncate
+        - inject tool_result into messages
+     e. continue loop with tool results
+  5. persistMessages(sessionID, userMsg, assistantMsg)
+  6. fire-and-forget: indexMemory(sessionID)
+```
+
+### 10.3 Loop limits
+
+| Parameter | Value | Reason |
+|---|---|---|
+| Max turns | 10 | Conversational chat, not autonomous agent |
+| Max parallel tool calls | 1 (serial) | Simpler approval flow |
+| Max tool output (per call) | 3000 tokens | Context budget protection |
+| Max tool output (per turn) | 8000 tokens | Context budget protection |
+| Terminal timeout | 30s | User-facing, must feel responsive |
+| web_fetch size cap | 15K chars | ~3750 tokens |
+
+---
+
+## 11. Database Schema
+
+### 11.1 `sessions`
 
 ```sql
 CREATE TABLE IF NOT EXISTS sessions (
-    id          TEXT PRIMARY KEY,
-    title       TEXT NOT NULL DEFAULT 'New Chat',
-    model       TEXT NOT NULL DEFAULT 'bob/premium',
+    id            TEXT PRIMARY KEY,
+    title         TEXT NOT NULL DEFAULT 'New Chat',
+    model         TEXT NOT NULL DEFAULT 'bob/premium',
     message_count INTEGER NOT NULL DEFAULT 0,
-    tokens_in   INTEGER NOT NULL DEFAULT 0,
-    tokens_out  INTEGER NOT NULL DEFAULT 0,
-    archived    BOOLEAN NOT NULL DEFAULT 0,
-    created_at  DATETIME NOT NULL DEFAULT (datetime('now')),
-    updated_at  DATETIME NOT NULL DEFAULT (datetime('now'))
+    tokens_in     INTEGER NOT NULL DEFAULT 0,
+    tokens_out    INTEGER NOT NULL DEFAULT 0,
+    archived      BOOLEAN NOT NULL DEFAULT 0,
+    tools_enabled BOOLEAN NOT NULL DEFAULT 0,
+    created_at    DATETIME NOT NULL DEFAULT (datetime('now')),
+    updated_at    DATETIME NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_sessions_updated ON sessions(updated_at DESC);
 ```
 
-### 7.2 `messages` table
+### 11.2 `messages`
 
 ```sql
 CREATE TABLE IF NOT EXISTS messages (
     id          TEXT PRIMARY KEY,
     session_id  TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
     seq         INTEGER NOT NULL,
-    role        TEXT NOT NULL CHECK(role IN ('user','assistant','system')),
+    role        TEXT NOT NULL CHECK(role IN ('user','assistant','system','tool')),
     content     TEXT NOT NULL DEFAULT '',
     reasoning   TEXT,
+    tool_calls  TEXT,    -- JSON array of tool_use blocks
+    tool_results TEXT,   -- JSON array of tool_result blocks
     model       TEXT,
     tokens_in   INTEGER NOT NULL DEFAULT 0,
     tokens_out  INTEGER NOT NULL DEFAULT 0,
@@ -244,276 +417,330 @@ CREATE TABLE IF NOT EXISTS messages (
 CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id, seq);
 ```
 
-### 7.3 `memories` table
+### 11.3 `memories`
 
 ```sql
 CREATE TABLE IF NOT EXISTS memories (
-    id          TEXT PRIMARY KEY,
-    scope       TEXT NOT NULL CHECK(scope IN ('session','user','global')),
-    scope_key   TEXT NOT NULL,
-    key         TEXT NOT NULL,
-    content     TEXT NOT NULL,
-    source      TEXT NOT NULL DEFAULT 'chatui',
-    created_at  DATETIME NOT NULL DEFAULT (datetime('now')),
-    updated_at  DATETIME NOT NULL DEFAULT (datetime('now')),
+    id         TEXT PRIMARY KEY,
+    scope      TEXT NOT NULL CHECK(scope IN ('session','user','global')),
+    scope_key  TEXT NOT NULL,
+    key        TEXT NOT NULL,
+    content    TEXT NOT NULL,
+    source     TEXT NOT NULL DEFAULT 'chatui',
+    created_at DATETIME NOT NULL DEFAULT (datetime('now')),
+    updated_at DATETIME NOT NULL DEFAULT (datetime('now')),
     UNIQUE(scope, scope_key, key)
 );
 CREATE INDEX IF NOT EXISTS idx_memories_scope ON memories(scope, scope_key);
 
--- FTS for memory search
 CREATE VIRTUAL TABLE IF NOT EXISTS memories_fts USING fts5(
     key, content,
     content='memories', content_rowid='rowid'
 );
 ```
 
-### 7.4 `kv` table (settings + migration version)
+### 11.4 `kv`
 
 ```sql
 CREATE TABLE IF NOT EXISTS kv (
     kv_key   TEXT PRIMARY KEY,
     kv_value TEXT NOT NULL
 );
--- schema_version key: "1", "2", etc. — incremented after each migration batch
--- chatui.active_session_id: last active session
+-- Keys used:
+--   schema_version          "1", "2", ...
+--   chatui.active_session   last active session ID
+--   skills.enabled          JSON array of enabled skill names
+--   mcp.servers             JSON array of MCP server configs
 ```
 
-### 7.5 Migration strategy
-
-Unlike Antares (which has no version table and re-runs all DDL every startup),
-ChatUI DB uses a version key:
+### 11.5 Migration strategy
 
 ```go
-// On startup:
-version := kv.Get("schema_version") // "" if fresh
+// On startup: run only new migrations
+version := kv.Get("schema_version") // "" on fresh install
 if version < currentVersion {
-    runMigrationsFrom(version+1, currentVersion)
+    tx.runMigrationsFrom(version+1, currentVersion)
     kv.Set("schema_version", currentVersion)
 }
 ```
 
-This avoids the re-run-all-DDL risk and makes migrations additive and safe.
+This avoids Antares's "re-run all DDL every startup" risk.
 
 ---
 
-## 8. API Specification
+## 12. System Prompt Builder
 
-All endpoints are under `/chatui/api/` and bypass `dash.Require` (same as existing
-`/chatui/api/config`). All responses are `{"data": T}` on success, `{"error": "..."}` on failure.
-
-### 8.1 Sessions
+5-section prompt (simplified from Antares's 13-section builder):
 
 ```
-GET /chatui/api/sessions
-  Query: limit (default 50), offset (default 0)
-  Response: {"data": {"sessions": Session[], "total": int}}
+Section 1: Identity (~50 tokens)
+  "You are an AI assistant in enowX ChatUI. Today is {date}."
 
-POST /chatui/api/sessions
-  Body: {"title": string, "model": string}
-  Response: {"data": Session}
+Section 2: Tool notes (~200 tokens, only if tools_enabled)
+  Brief description of available tools and when to use them.
+  Approval gate reminder for terminal and write_file.
 
-GET /chatui/api/sessions/:id
-  Response: {"data": {"session": Session, "messages": Message[]}}
+Section 3: Skills block (~120 tokens, Phase 3)
+  "## Your skills\n- skill-name: description (use when: triggers)\n..."
 
-PATCH /chatui/api/sessions/:id
-  Body: {"title"?: string, "model"?: string, "archived"?: bool}
-  Response: {"data": Session}
+Section 4: Memory (~300 tokens, Phase 2)
+  "## What you remember\n- key: content\n..."
+  Last 20 user-scoped + last 10 session-scoped memories.
 
-DELETE /chatui/api/sessions/:id
-  Response: {"data": {"ok": true}}
+Section 5: Extra (~variable)
+  session.system_extra if set (user-provided persona/context).
 ```
 
-### 8.2 Messages
+**Total system prompt (Phase 2, tools + memory, no skills):** ~600–800 tokens
+**Total system prompt (Phase 3, tools + memory + skills):** ~700–1000 tokens
+
+---
+
+## 13. Memory Indexing Pipeline
+
+Runs as a background goroutine after each turn. Fire-and-forget, never blocks UI.
 
 ```
-POST /chatui/api/sessions/:id/messages
-  Body: {"role": "user"|"assistant", "content": string, "reasoning"?: string,
-         "model"?: string, "tokens_in"?: int, "tokens_out"?: int}
-  Response: {"data": Message}
-  Side-effect: increments sessions.message_count, tokens_in, tokens_out
-```
-
-### 8.3 Memory indexing (Phase 2)
-
-```
-POST /chatui/api/sessions/:id/index
-  Body: {} (empty — reads last N messages from DB)
-  Response: {"data": {"memories_written": int}}
-  Background: calls Anthropic SDK → enowX proxy → summarise → writes memories
-  Rate-limited: max 1 per session per 30s
-```
-
-### 8.4 Memory read (Phase 2)
-
-```
-GET /chatui/api/sessions/:id/memories
-  Response: {"data": Memory[]}
-
-GET /chatui/api/memories?q=...&limit=20
-  Response: {"data": Memory[]}   (FTS search across all chatui memories)
+indexMemory(sessionID):
+  1. Rate-limit check: last indexed < 30s ago? skip.
+  2. Load last user + assistant message pair from chatui.db.
+  3. SDK call (base_url → enowX proxy):
+       model: claude-haiku-4 (cheapest/fastest)
+       max_tokens: 500
+       prompt: "Extract 3-5 durable facts from this exchange.
+                Return JSON: [{"key": "...", "fact": "..."}]"
+  4. Parse JSON response.
+  5. For each fact → upsert memories table:
+       scope="session", scope_key=sessionID, source="chatui-auto"
+  6. Upsert user-level summary:
+       scope="user", scope_key="local"
+       key="summary-{sessionID}", content=one-line topic summary
+  7. On any error: log, discard silently (memories are supplementary)
 ```
 
 ---
 
-## 9. Frontend Changes
+## 14. API Specification
 
-### 9.1 `useSessions.ts` — hybrid localStorage + API
+All under `/chatui/api/`, bypass `dash.Require`. Response: `{"data": T}` / `{"error": "..."}`.
+
+### Sessions
+
+```
+GET    /chatui/api/sessions               list (limit, offset)
+POST   /chatui/api/sessions               create {title, model}
+GET    /chatui/api/sessions/:id           get + messages
+PATCH  /chatui/api/sessions/:id           update {title, model, archived, tools_enabled}
+DELETE /chatui/api/sessions/:id           delete
+POST   /chatui/api/sessions/:id/messages  append message
+```
+
+### Chat (agentic)
+
+```
+POST   /chatui/api/chat/stream            SSE agentic loop
+  SSE event types:
+    {"type": "text_delta",         "delta": "..."}
+    {"type": "thinking_delta",     "delta": "..."}
+    {"type": "tool_start",         "tool": "web_search", "args": {...}}
+    {"type": "tool_result",        "tool": "web_search", "result": "..."}
+    {"type": "tool_approval_required", "tool": "terminal", "args": {...}, "approval_id": "..."}
+    {"type": "done",               "tokens_in": N, "tokens_out": N}
+    {"type": "error",              "message": "..."}
+
+POST   /chatui/api/chat/approve/:approval_id   approve a pending tool call
+POST   /chatui/api/chat/deny/:approval_id      deny a pending tool call
+```
+
+### Memory
+
+```
+POST   /chatui/api/sessions/:id/index     trigger memory indexing
+GET    /chatui/api/sessions/:id/memories  list session memories
+GET    /chatui/api/memories?q=...         FTS search all memories
+POST   /chatui/api/memories               save a memory manually
+DELETE /chatui/api/memories/:id           delete a memory
+```
+
+### MCP (Phase 3)
+
+```
+GET    /chatui/api/mcp/servers            list configured MCP servers
+POST   /chatui/api/mcp/servers            add server
+DELETE /chatui/api/mcp/servers/:id        remove server
+POST   /chatui/api/mcp/servers/:id/test   test connection
+```
+
+### Skills (Phase 3)
+
+```
+GET    /chatui/api/skills                 list all skills
+PATCH  /chatui/api/skills/:name           toggle enabled
+```
+
+---
+
+## 15. Frontend Changes
+
+### 15.1 `useChat.ts` — switch to agentic endpoint (Phase 2)
 
 ```typescript
-// Phase 1 strategy: write-through
-// - All session/message mutations call the API first
-// - localStorage is a read-cache (populated from API on mount)
-// - On API failure, fall back to localStorage-only (offline mode)
-
-// "chatui-api-available" in sessionStorage: "1" after first successful API call
-
-async function create(model: string): Promise<ChatSession> {
-  // POST /chatui/api/sessions → get ID from server
-  // mirror to localStorage
-}
-
-async function appendMessage(sessionId: string, msg: ChatMsg): Promise<void> {
-  // POST /chatui/api/sessions/:id/messages
-  // update local state
-}
+// If session.tools_enabled:
+//   POST /chatui/api/chat/stream (new agentic SSE)
+//   Handle new SSE event types: tool_start, tool_result, tool_approval_required
+// Else:
+//   Continue using /anthropic/v1/messages directly (existing, untouched)
 ```
 
-### 9.2 `useChat.ts` — append messages after each turn
+### 15.2 `useSessions.ts` — hybrid localStorage + API (Phase 1)
 
 ```typescript
-// After turn completes (user message sent + assistant response received):
-// 1. await sessionsApi.appendMessage(sessionId, userMsg)
-// 2. await sessionsApi.appendMessage(sessionId, assistantMsg)
-// 3. [Phase 2] fire-and-forget: POST /chatui/api/sessions/:id/index
+// Write-through: API first, localStorage as fallback cache
+// POST /chatui/api/sessions on create
+// POST /chatui/api/sessions/:id/messages after each turn
 ```
+
+### 15.3 New components (Phase 2)
+
+| Component | Purpose |
+|---|---|
+| `ToolCallBlock.tsx` | Show tool name + args + result inline in message |
+| `ApprovalDialog.tsx` | Approval gate UI for terminal + write_file |
+| `MemoryPanel.tsx` | Sidebar panel showing session memories |
 
 ---
 
-## 10. Memory Indexing Pipeline (Phase 2)
+## 16. Phased Rollout
 
-Inspired by Antares `indexUserTurn()` / `summariseUserTurn()` in `ragcontext.go` —
-same concept, simpler implementation using Anthropic SDK:
+### Phase 1 — Persistent sessions
+- `store/chatui/` package (types, migrations, SQLite)
+- Session + message REST API (6 endpoints)
+- Frontend: `useSessions.ts` + `useChat.ts` hybrid API/localStorage
+- **Result:** history survives browser clear
 
-```
-After turn completes (fire-and-forget goroutine):
-  1. Load last user + assistant message pair from chatui.db
-  2. Anthropic SDK client (base_url → enowX proxy):
-     model: cheapest/fastest available (e.g. claude-haiku-4)
-     prompt: "Extract 3-5 durable facts from this conversation exchange.
-              Return JSON: [{"key": "...", "fact": "..."}]"
-  3. For each extracted fact → write to memories table:
-       scope = "session", scope_key = sessionID
-       key   = extracted key
-       content = extracted fact
-       source = "chatui-auto"
-  4. Also write a user-level summary:
-       scope = "user", scope_key = "local"
-       key   = "summary-<sessionID>"
-       content = one-line summary of the session topic
-```
+### Phase 2 — Memory + Tools
+- Anthropic SDK (`github.com/anthropics/anthropic-sdk-go`)
+- `core/chatui/` package: agent loop, 8 tools, plugins, memory indexer
+- New `/chatui/api/chat/stream` agentic endpoint
+- Tool UI: `ToolCallBlock`, `ApprovalDialog`
+- Memory indexer (background goroutine)
+- Memory API + `MemoryPanel` UI
+- **Result:** Claude can use tools + remember things across sessions
 
-### Why this is safe:
-- SDK calls enowX proxy → goes through normal account pool → no direct API key exposure
-- Fire-and-forget goroutine with rate limit (1/session/30s) — never blocks the UI
-- On indexer error: log and discard, not crash (memories are a nice-to-have, not critical)
-- SDK's built-in retry handles transient errors without extra code
+### Phase 3 — MCP + Skills
+- MCP client (stdio transport, 6 servers)
+- Skills system (6 built-in skills, user-configurable)
+- System prompt: skills block + memory recall
+- MCP + skills management APIs
+- **Result:** extensible via MCP, guided by skills
+
+### Phase 4 (future, separate spec)
+- Semantic memory (RAG/vector search)
+- User-installable MCP servers from hub
+- Soul/persona system
+- Multi-user identity
 
 ---
 
-## 11. Security & Safety
+## 17. Security & Safety
 
 | Concern | Mitigation |
 |---|---|
-| chatui.db is a new file | Stored at `$ENOWX_RUNTIME_DIR/chatui.db` (default `~/.enowx/chatui.db`). Same dir, never /tmp. |
-| API endpoints bypass dash.Require | Same as existing `/chatui/api/config`. Only local machine. Remote access requires enowX auth. |
-| Memory indexer calls LLM | Via SDK → enowX proxy (same account pool as chat). Rate-limited. Never blocks UI. |
-| No user auth in Phase 1 | Single-owner device. `user_id = "local"` throughout. Multi-user is a separate concern. |
-| enowX proxy untouched | Indexer is a new Go file in `store/chatui/`. Zero modifications to any existing handler. |
-| Port 1430 never touched | All dev work on :1431. Production binary untouched. |
+| `terminal` tool | Approval gate: user must confirm before execution. 30s timeout. 3000 token output cap. |
+| `write_file` tool | Approval gate. Path scoped to workspace directory only (no `../` traversal). |
+| `web_fetch` untrusted output | Output wrapped in context marker, size-capped at 15K chars. |
+| chatui.db location | `$ENOWX_RUNTIME_DIR/chatui.db` — never /tmp |
+| API endpoints bypass dash.Require | Same as `/chatui/api/config` today. Local machine only. |
+| Memory indexer LLM calls | Via SDK → enowX proxy → account pool. Rate-limited 1/session/30s. |
+| enowX proxy untouched | All new code in `core/chatui/` and `store/chatui/`. Zero edits to existing handlers. |
+| Port 1430 | Never touched. All dev on :1431. |
 
 ---
 
-## 12. Phased Rollout
-
-### Phase 1 — Persistent sessions (~8 tasks)
-- `store/chatui/` package: types, migrations, SQLite implementation
-- 5 session API endpoints + message append endpoint
-- Frontend: hybrid localStorage+API in `useSessions.ts` + `useChat.ts`
-- **Result:** history survives browser clear, queryable by session ID from backend
-
-### Phase 2 — Memory indexing (~4 tasks, after Phase 1 ships)
-- Anthropic SDK dependency added (`github.com/anthropics/anthropic-sdk-go`)
-- Memory indexing endpoint + background goroutine + SDK summarisation
-- Memory read endpoints
-- **Result:** session memories stored, searchable, foundation for memory system
-
-### Phase 3 — Semantic memory recall (future, separate spec)
-- Index memories into a vector store (concept from Antares `rag_chunks`)
-- Add embedding search endpoint
-- **Depends on:** choosing an embedding model available via enowX pool
-
----
-
-## 13. New Files in enowX
-
-```
-store/chatui/
-  store.go          — Store interface (ChatStore)
-  sqlite.go         — modernc SQLite implementation
-  migrations.go     — embedded DDL (own DDL, Antares-inspired design)
-  types.go          — Session, Message, Memory types
-
-server/handlers/
-  chatui_sessions.go  — HTTP handlers for /chatui/api/sessions/*
-  chatui_memory.go    — HTTP handlers for /chatui/api/memories (Phase 2)
-
-server/server.go    — wire new handlers into /chatui/api/ block (outside dash.Require)
-cmd/enowx/main.go   — open chatui.db, pass ChatStore to new handlers
-```
-
-### Modified files
-
-```
-server/server.go       — add routes
-cmd/enowx/main.go      — open chatui.db on startup
-web/src/chatui/useSessions.ts   — hybrid API + localStorage
-web/src/chatui/useChat.ts       — append messages after turn
-```
-
-### NOT modified (hard constraints)
-
-```
-/usr/local/bin/enx           — production binary, never touch
-:1430                        — production server, never touch
-Antares codebase             — zero changes, zero dependency
-enowX core/ proxy handlers   — proxy, pool, model routing — untouched
-enowX store/sqlite/          — existing enowX DB — untouched
-Any existing enowX handler   — no modifications
-```
-
----
-
-## 14. Risks (from audit)
-
-These are known risks in Antares's implementation that we deliberately avoid:
+## 18. Risks & Mitigations (from Antares audit)
 
 | Antares Risk | Our Mitigation |
 |---|---|
-| No migration version table — re-runs all DDL every startup | We have `schema_version` KV key — only run new migrations |
-| SQLite write contention: background indexer vs HTTP handler, errors silently discarded | Use WAL mode; indexer runs in own goroutine with error logging; no silent discards |
-| PromptBlock token bomb: counts by skill count, not chars | Not implementing prompt injection in Phase 1-2; Phase 3 will have char budget guard |
-| RAG full table scan O(n) | Phase 3 concern; will use proper index or defer |
+| No migration version table → re-runs all DDL on startup | `schema_version` KV key → only new migrations run |
+| Background indexer + HTTP handler write contention on SQLite | WAL mode + serialized writes via channel/mutex; no silent error discard |
+| PromptBlock token bomb: counts skills not chars | Char budget guard: skills block hard-capped at 500 tokens |
+| RAG full table scan O(n) | Not in Phase 1-3; Phase 4 uses proper index |
+| `delegate_task` sub-agent cascade | Not implementing sub-agents in ChatUI |
+| `browser` tool token bomb (3000-8000 tokens/snapshot) | Not implementing browser tool |
+| MCP tool output unbounded | All MCP tool results go through same `MaxToolOutputTokens` truncation as built-in tools |
 
 ---
 
-## 15. Open Questions for Owner
+## 19. New Files in enowX
 
-1. **Memory indexing model:** Which model for summarisation? Proposal: use `claude-haiku-4` (cheapest/fastest) always for indexing, regardless of what model the session uses. This keeps costs low and speed high for background work.
+```
+core/chatui/
+  agent.go        — ChatLoop: agentic turn loop (SDK + tool dispatch)
+  tools.go        — 8 built-in tool implementations
+  tools_web.go    — web_search + web_fetch
+  tools_file.go   — read_file + write_file + list_files + grep
+  tools_term.go   — terminal (exec.CommandContext, 30s timeout)
+  tools_memory.go — memory tool (read/write memories table)
+  mcp.go          — MCP client (Phase 3)
+  skills.go       — skill loader + PromptBlock (Phase 3)
+  plugins.go      — plugin middleware chain
+  memory.go       — background memory indexer goroutine
+  prompt.go       — 5-section system prompt builder
 
-2. **User identity for Phase 3:** Phase 1-2 uses `user_id = "local"`. If you plan to link ChatUI history to Discord/Telegram gateway users later, the `user_id` field is the right extension point — add it now before schema is set?
+store/chatui/
+  store.go        — ChatStore interface
+  sqlite.go       — modernc SQLite implementation
+  migrations.go   — embedded DDL
+  types.go        — Session, Message, Memory types
 
-3. **Skill/MCP integration timing:** Phase 2 gives us memories. Phase 3 would add semantic search. Do you want to add skills injection to the memory indexer system prompt in Phase 2, or keep it simpler and add in Phase 3?
+server/handlers/
+  chatui_sessions.go — session CRUD + message append
+  chatui_chat.go     — POST /chatui/api/chat/stream (SSE)
+  chatui_memory.go   — memory read/write/search
+  chatui_mcp.go      — MCP server management (Phase 3)
+  chatui_skills.go   — skill enable/disable (Phase 3)
 
-4. **Session URL routing:** Currently sessions are not exposed as `/chatui/session/:id` URLs. With persistent sessions, this becomes possible. Do you want URL routing per session in Phase 1 (so refresh keeps you in the same session), or defer to later?
+web/src/chatui/
+  ToolCallBlock.tsx  — tool call display in message thread
+  ApprovalDialog.tsx — approval gate UI
+  MemoryPanel.tsx    — session memory sidebar panel (Phase 2)
+  useChat.ts         — MODIFIED: handle agentic SSE events
+  useSessions.ts     — MODIFIED: hybrid API/localStorage
+```
 
-5. **chatui.db backup:** Since this will store valuable history, do you want a simple periodic backup mechanism (copy to `chatui.db.bak` on startup) in Phase 1?
+### NOT modified
+
+```
+/usr/local/bin/enx          — production binary
+Antares codebase            — zero changes, zero dependency
+enowX core/                 — proxy, pool, model routing — untouched
+enowX store/sqlite/         — existing enowx.db — untouched
+server/handlers/v1.go       — Anthropic proxy handler — untouched
+server/handlers/chatui.go   — existing config handler — untouched
+Any other existing file     — untouched
+```
+
+---
+
+## 20. Open Questions for Owner
+
+1. **Phase 2 scope — tools_enabled per session or global?**
+   Proposal: per-session toggle (`tools_enabled` column). Default off. User enables
+   per-session when they want Claude to use tools. This keeps simple chat fast and cheap.
+
+2. **Terminal tool — workspace scoping?**
+   Which directory should `terminal` and `read_file`/`write_file` be scoped to?
+   Options: (a) `$HOME`, (b) user-configurable workspace dir, (c) no restriction
+   (rely only on approval gate). Proposal: user-configurable, default `$HOME`.
+
+3. **Memory indexing model — haiku always, or follow session model?**
+   Proposal: always use the cheapest/fastest available model (haiku-4 class).
+   Memory indexing is background summarisation — it doesn't need the best model.
+
+4. **MCP in Phase 3 — stdio only or HTTP also?**
+   stdio is simpler (spawn subprocess). HTTP needed for remote MCP servers.
+   Proposal: stdio only in Phase 3, HTTP in Phase 4.
+
+5. **Skills storage — files only or also DB?**
+   Proposal: files in `$ENOWX_RUNTIME_DIR/chatui/skills/*.md`, enable/disable state
+   in `kv` table. Simple, editable, no extra table needed.
