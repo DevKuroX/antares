@@ -504,6 +504,31 @@ CREATE TABLE IF NOT EXISTS messages (
     UNIQUE(session_id, seq)
 );
 CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id, seq);
+
+-- FTS5 for cross-session history recall (porter stemmer: "build"/"built"/"building" all match)
+CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts USING fts5(
+    content,
+    reasoning,
+    content='messages',
+    content_rowid='rowid',
+    tokenize='porter unicode61'
+);
+
+-- Keep FTS in sync automatically
+CREATE TRIGGER IF NOT EXISTS messages_ai AFTER INSERT ON messages BEGIN
+    INSERT INTO messages_fts(rowid, content, reasoning)
+    VALUES (new.rowid, new.content, coalesce(new.reasoning,''));
+END;
+CREATE TRIGGER IF NOT EXISTS messages_ad AFTER DELETE ON messages BEGIN
+    INSERT INTO messages_fts(messages_fts, rowid, content, reasoning)
+    VALUES ('delete', old.rowid, old.content, coalesce(old.reasoning,''));
+END;
+CREATE TRIGGER IF NOT EXISTS messages_au AFTER UPDATE ON messages BEGIN
+    INSERT INTO messages_fts(messages_fts, rowid, content, reasoning)
+    VALUES ('delete', old.rowid, old.content, coalesce(old.reasoning,''));
+    INSERT INTO messages_fts(rowid, content, reasoning)
+    VALUES (new.rowid, new.content, coalesce(new.reasoning,''));
+END;
 ```
 
 ### 11.3 `memories`
@@ -590,41 +615,154 @@ Section 2: Tool notes (~200 tokens, only if tools_enabled)
 Section 3: Skills block (~120 tokens, Phase 3)
   "## Your skills\n- skill-name: description (use when: triggers)\n..."
 
-Section 4: Memory (~300 tokens, Phase 2)
-  "## What you remember\n- key: content\n..."
-  Last 20 user-scoped + last 10 session-scoped memories.
+Section 4: Knowledge (~1000 tokens max, Phase 2)
+
+  Section 4a: Curated memories (~200 tokens)
+    "## What you remember
+     - key: fact (curated by LLM indexer, high signal)"
+    Source: memories table, last 10 user-scoped + 5 session-scoped
+
+  Section 4b: Relevant past context (~800 tokens, only if FTS hits)
+    "## Relevant past context
+     [date | session title] (role) message excerpt..."
+    Source: messages_fts FTS5 search over all sessions
+    Frozen at session start — not re-queried mid-session
 
 Section 5: Extra (~variable)
   session.system_extra if set (user-provided persona/context).
 ```
 
-**Total system prompt (Phase 2, tools + memory, no skills):** ~600–800 tokens
-**Total system prompt (Phase 3, tools + memory + skills):** ~700–1000 tokens
+**Frozen snapshot pattern (from Hermes):** Section 4 is built once at
+session start and never mutated mid-session. This keeps context stable
+across all turns. Mid-session memory writes (from indexer) persist to DB
+but do NOT update the current session's prompt — they appear in the
+NEXT session's Section 4.
+
+**Total system prompt (Phase 2, tools + knowledge):** ~800–1200 tokens
+**Total system prompt (Phase 3, tools + knowledge + skills):** ~900–1400 tokens
 
 ---
 
-## 13. Memory Indexing Pipeline
+## 13. Session History as Knowledge — FTS-based Recall
 
-Runs as a background goroutine after each turn. Fire-and-forget, never blocks UI.
+### 13.1 Design decision: FTS5, not vector search
+
+Embedding/vector search requires an embedding model. Bob gateway returns
+`403 Access Denied` on `/inference/v1/embeddings` and exposes zero embedding
+models in its catalog. No local GPU. No external embedding provider.
+
+**FTS5 is the right answer** for this use case:
+- User searches their own history using the same words they used when building
+- "sidebar bug" → hits exact conversation → no semantic gap to bridge
+- SQLite FTS5: built-in, zero infra, already in schema
+
+Pattern inspired by Hermes Agent's frozen snapshot: relevant history is
+retrieved at session start and injected as a stable context block —
+not re-queried every turn.
+
+### 13.2 FTS schema
+
+```sql
+-- messages_fts: virtual table over messages content
+CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts USING fts5(
+    content,
+    reasoning,
+    content='messages',
+    content_rowid='rowid',
+    tokenize='porter unicode61'   -- porter stemming: "building" matches "build"
+);
+
+-- Keep FTS in sync via triggers
+CREATE TRIGGER IF NOT EXISTS messages_ai AFTER INSERT ON messages BEGIN
+    INSERT INTO messages_fts(rowid, content, reasoning)
+    VALUES (new.rowid, new.content, coalesce(new.reasoning,''));
+END;
+CREATE TRIGGER IF NOT EXISTS messages_ad AFTER DELETE ON messages BEGIN
+    INSERT INTO messages_fts(messages_fts, rowid, content, reasoning)
+    VALUES ('delete', old.rowid, old.content, coalesce(old.reasoning,''));
+END;
+CREATE TRIGGER IF NOT EXISTS messages_au AFTER UPDATE ON messages BEGIN
+    INSERT INTO messages_fts(messages_fts, rowid, content, reasoning)
+    VALUES ('delete', old.rowid, old.content, coalesce(old.reasoning,''));
+    INSERT INTO messages_fts(rowid, content, reasoning)
+    VALUES (new.rowid, new.content, coalesce(new.reasoning,''));
+END;
+```
+
+Porter stemmer means "building" matches "build", "built" matches "build" —
+handles natural language variation without any embedding model.
+
+### 13.3 Recall pipeline
 
 ```
-indexMemory(sessionID):
-  1. Rate-limit check: last indexed < 30s ago? skip.
-  2. Load last user + assistant message pair from chatui.db.
-  3. Load session.model from chatui.db (use same model as session).
-  4. SDK call (base_url → enowX proxy):
-       model: session.model  ← follows session, not hardcoded
-       max_tokens: 500
-       prompt: "Extract 3-5 durable facts from this exchange.
-                Return JSON: [{"key": "...", "fact": "..."}]"
-  5. Parse JSON response.
-  6. For each fact → upsert memories table:
-       scope="session", scope_key=sessionID, source="chatui-auto"
-  7. Upsert user-level summary:
-       scope="user", scope_key="local"
-       key="summary-{sessionID}", content=one-line topic summary
-  8. On any error: log, discard silently (memories are supplementary)
+New session starts (or new turn arrives):
+  1. Extract query terms from user's first message
+     (or re-use session title as query)
+  2. FTS search across ALL sessions:
+       SELECT m.content, m.role, s.title, s.created_at, s.model
+       FROM messages_fts fts
+       JOIN messages m ON m.rowid = fts.rowid
+       JOIN sessions s ON s.id = m.session_id
+       WHERE messages_fts MATCH 'query terms'
+         AND m.compacted = 0
+         AND m.role IN ('user', 'assistant')
+       ORDER BY rank, s.updated_at DESC
+       LIMIT 8
+  3. Group results by session, take top-2 sessions
+  4. Format as frozen context block (Hermes pattern):
+       "## Relevant past context
+        [2026-09-01 | session: ChatUI Sidebar] (assistant) Built ChatSidebar
+        with GlideMenu. Collapsed width 52px, expanded 224px. Toggle moved
+        to floating header...
+        [2026-08-30 | session: enowX deploy] (user) How do I deploy to :1431?"
+  5. Inject into Section 4 of system prompt (replaces per-turn memories)
+  6. Frozen for the session — not re-queried mid-session (preserves context
+     stability, same as Hermes frozen snapshot pattern)
 ```
+
+**Token budget for history context:** hard cap 800 tokens. Each chunk
+truncated to 200 chars. If FTS returns nothing: section omitted entirely.
+
+### 13.4 Memory indexing pipeline (still runs, complementary)
+
+FTS search over raw messages handles recall. The LLM-based memory indexer
+writes **curated facts** to the `memories` table — higher signal, smaller
+footprint. Both layers work together:
+
+```
+indexMemory(sessionID) — background goroutine, fire-and-forget:
+  1. Rate-limit: last indexed < 30s ago? skip.
+  2. Load last user + assistant message pair.
+  3. Load session.model.
+  4. SDK call (base_url → enowX proxy, model = session.model):
+       max_tokens: 300
+       prompt: "Extract 2-3 durable facts worth remembering.
+                Return JSON: [{"key":"...","fact":"..."}]
+                Skip: code snippets, temporary state, obvious facts."
+  5. Upsert to memories table:
+       scope="session", scope_key=sessionID
+  6. Upsert one-line user summary:
+       scope="user", scope_key="local", key="summary-{sessionID}"
+  7. On error: log, discard — never blocks UI
+```
+
+### 13.5 Two-layer recall in system prompt
+
+```
+Section 4a: Curated memories (~200 tokens)
+  "## What you remember
+   - user prefers TypeScript strict mode
+   - ChatSidebar uses GlideMenu, collapsed=52px
+   - deploy target: :1431 dev, :1430 prod"
+  Source: memories table (LLM-curated facts)
+
+Section 4b: Relevant history (~800 tokens, only if FTS hits)
+  "## Relevant past context
+   [yesterday | ChatUI Sidebar] ..."
+  Source: messages_fts (raw conversation chunks)
+```
+
+Total Section 4 budget: **~1000 tokens max**, hard-capped.
 
 ---
 
@@ -830,11 +968,12 @@ core/chatui/
   tools_file.go   — read_file + write_file + list_files + grep
   tools_term.go   — terminal (exec.CommandContext, 30s timeout)
   tools_memory.go — memory tool (read/write memories table)
+  recall.go       — FTS-based cross-session history recall (§13)
   mcp.go          — MCP client (Phase 3)
   skills.go       — skill loader + PromptBlock (Phase 3)
   plugins.go      — plugin middleware chain
   memory.go       — background memory indexer goroutine
-  prompt.go       — 5-section system prompt builder
+  prompt.go       — 5-section system prompt builder (frozen snapshot pattern)
 
 store/chatui/
   store.go        — ChatStore interface
