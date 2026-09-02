@@ -1,7 +1,7 @@
 # enowX ChatUI Memory + Tools System — Design Spec
 
 **Date:** 2026-09-02  
-**Status:** DRAFT — awaiting owner review before implementation  
+**Status:** IMPLEMENTED — audit findings incorporated, all tests passing  
 **Author:** Claude (audit + design)
 
 **Reference docs (read before implementing):**
@@ -372,7 +372,7 @@ ChatLoop(ctx, sessionID, userMessage, attachments[]):
   3. maybeCompact(messages)           // silent compaction if near context limit (see §10.4)
   4. buildUserMessage(userMessage, attachments)  // text + optional ImageBlockParams
   5. tokenCount = SDK.CountTokens(systemPrompt, messages, tools)  // see §10.5
-     if tokenCount > modelContextLimit * 0.9 → force compact now
+     if tokenCount > modelContextLimit * 0.85 → force compact now
   6. Loop (max 10 turns):
      a. SDK.Messages.NewStreaming(ctx, {tools: allTools, messages: history})
      b. Stream response tokens to client via SSE
@@ -399,7 +399,7 @@ ChatLoop(ctx, sessionID, userMessage, attachments[]):
 | Max tool output (per turn) | 8000 tokens | Context budget protection |
 | Terminal timeout | 30s | User-facing, must feel responsive |
 | web_fetch size cap | 15K chars | ~3750 tokens |
-| Compaction threshold | 90% of model context limit | Trigger before hitting hard wall |
+| Compaction threshold | 85% of model context limit | Trigger before hitting hard wall |
 | Compaction target | Keep last 10 messages intact | Preserve recent context |
 
 ### 10.4 Silent Compaction
@@ -425,8 +425,10 @@ maybeCompact(messages, systemPromptTokens):
        role: "user"
        content: "[Conversation summary]\n{summary}"
   6. Persist compacted flag on those rows in chatui.db:
-       messages.compacted = true, messages.content = summary (for first row)
-       remaining compacted rows: deleted from DB, not just flagged
+       messages.compacted = TRUE (all rows in [0..boundary])
+       messages.content = summary (first row only), messages.content = '' (remaining rows)
+       Rows are NOT deleted — they remain in DB flagged as compacted.
+       FTS update trigger fires (messages_au), removing old content from FTS index.
   7. Send SSE event to frontend: {"type": "compacted", "removed": N, "summary_tokens": M}
      Frontend shows subtle indicator: "Earlier messages summarised"
 ```
@@ -457,8 +459,7 @@ count, err := sdkClient.Messages.CountTokens(ctx, anthropic.MessageCountTokensPa
 ```
 
 Model context limits stored in `kv` table as `model.context.<modelID>` (populated
-from `/chatui/api/config` response which already returns model list). Fallback: 100K
-if unknown.
+from `/chatui/api/config` response which already returns model list). Fallback: 32K if unknown (conservative — prevents overflow on small models).
 
 **Note on prompt caching:** The SDK supports `cache_control` blocks for Anthropic-native
 providers (saves cost on repeated system prompts). This is **deferred** — requires
@@ -512,7 +513,6 @@ CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id, seq);
 -- FTS5 for cross-session history recall (porter stemmer: "build"/"built"/"building" all match)
 CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts USING fts5(
     content,
-    reasoning,
     content='messages',
     content_rowid='rowid',
     tokenize='porter unicode61'
@@ -520,18 +520,18 @@ CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts USING fts5(
 
 -- Keep FTS in sync automatically
 CREATE TRIGGER IF NOT EXISTS messages_ai AFTER INSERT ON messages BEGIN
-    INSERT INTO messages_fts(rowid, content, reasoning)
-    VALUES (new.rowid, new.content, coalesce(new.reasoning,''));
+    INSERT INTO messages_fts(rowid, content)
+    VALUES (new.rowid, new.content);
 END;
 CREATE TRIGGER IF NOT EXISTS messages_ad AFTER DELETE ON messages BEGIN
-    INSERT INTO messages_fts(messages_fts, rowid, content, reasoning)
-    VALUES ('delete', old.rowid, old.content, coalesce(old.reasoning,''));
+    INSERT INTO messages_fts(messages_fts, rowid, content)
+    VALUES ('delete', old.rowid, old.content);
 END;
 CREATE TRIGGER IF NOT EXISTS messages_au AFTER UPDATE ON messages BEGIN
-    INSERT INTO messages_fts(messages_fts, rowid, content, reasoning)
-    VALUES ('delete', old.rowid, old.content, coalesce(old.reasoning,''));
-    INSERT INTO messages_fts(rowid, content, reasoning)
-    VALUES (new.rowid, new.content, coalesce(new.reasoning,''));
+    INSERT INTO messages_fts(messages_fts, rowid, content)
+    VALUES ('delete', old.rowid, old.content);
+    INSERT INTO messages_fts(rowid, content)
+    VALUES (new.rowid, new.content);
 END;
 ```
 
@@ -670,7 +670,6 @@ not re-queried every turn.
 -- messages_fts: virtual table over messages content
 CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts USING fts5(
     content,
-    reasoning,
     content='messages',
     content_rowid='rowid',
     tokenize='porter unicode61'   -- porter stemming: "building" matches "build"
@@ -678,18 +677,18 @@ CREATE VIRTUAL TABLE IF NOT EXISTS messages_fts USING fts5(
 
 -- Keep FTS in sync via triggers
 CREATE TRIGGER IF NOT EXISTS messages_ai AFTER INSERT ON messages BEGIN
-    INSERT INTO messages_fts(rowid, content, reasoning)
-    VALUES (new.rowid, new.content, coalesce(new.reasoning,''));
+    INSERT INTO messages_fts(rowid, content)
+    VALUES (new.rowid, new.content);
 END;
 CREATE TRIGGER IF NOT EXISTS messages_ad AFTER DELETE ON messages BEGIN
-    INSERT INTO messages_fts(messages_fts, rowid, content, reasoning)
-    VALUES ('delete', old.rowid, old.content, coalesce(old.reasoning,''));
+    INSERT INTO messages_fts(messages_fts, rowid, content)
+    VALUES ('delete', old.rowid, old.content);
 END;
 CREATE TRIGGER IF NOT EXISTS messages_au AFTER UPDATE ON messages BEGIN
-    INSERT INTO messages_fts(messages_fts, rowid, content, reasoning)
-    VALUES ('delete', old.rowid, old.content, coalesce(old.reasoning,''));
-    INSERT INTO messages_fts(rowid, content, reasoning)
-    VALUES (new.rowid, new.content, coalesce(new.reasoning,''));
+    INSERT INTO messages_fts(messages_fts, rowid, content)
+    VALUES ('delete', old.rowid, old.content);
+    INSERT INTO messages_fts(rowid, content)
+    VALUES (new.rowid, new.content);
 END;
 ```
 
@@ -780,7 +779,8 @@ All under `/chatui/api/`, bypass `dash.Require`. Response: `{"data": T}` / `{"er
 GET    /chatui/api/sessions               list (limit, offset)
 POST   /chatui/api/sessions               create {title, model}
 GET    /chatui/api/sessions/:id           get + messages
-PATCH  /chatui/api/sessions/:id           update {title, model, archived, tools_enabled}
+PATCH  /chatui/api/sessions/:id           update {title, model, archived}
+-- tools_enabled is global only (see /chatui/api/settings)
 DELETE /chatui/api/sessions/:id           delete
 POST   /chatui/api/sessions/:id/messages  append message
 ```
@@ -1057,3 +1057,22 @@ Any other existing file     — untouched
 - DB table stores: name, enabled, category, triggers (denormalized for fast query)
 - On startup: scan skill files → upsert `skills` table (sync)
 - User edits `.md` file → restart or POST `/chatui/api/skills/reload` to resync
+
+---
+
+## 21. Audit Findings — Resolved
+
+| ID | Severity | Finding | Resolution |
+|---|---|---|---|
+| AUD-01 | CRITICAL | Compaction threshold inconsistency (85% vs 90%) | Fixed: use 85% throughout |
+| AUD-02 | HIGH | Compaction deletes rows vs flag contradiction | Fixed: flag rows (compacted=TRUE), no DELETE |
+| AUD-03 | HIGH | FTS migration missing backfill for Phase 1 rows | Fixed: migration 002 includes INSERT OR IGNORE backfill |
+| AUD-04 | HIGH | CountTokens endpoint not proxied | Fixed: POST /anthropic/v1/messages/count_tokens route added with local tokenize fallback |
+| AUD-05 | HIGH | tools_enabled in session PATCH contradicts Decision 1 | Fixed: removed from PATCH /sessions/:id |
+| AUD-06 | MEDIUM | seq allocation not atomic | Fixed: SELECT MAX(seq)+1 + INSERT in single BEGIN IMMEDIATE tx |
+| AUD-07 | MEDIUM | Session counters not in same tx as message INSERT | Fixed: UPDATE sessions in same tx as INSERT messages |
+| AUD-08 | MEDIUM | reasoning indexed in FTS — internal thinking recalled as context | Fixed: FTS indexes content only |
+| AUD-09 | MEDIUM | Approval state machine undefined | Fixed: PENDING/APPROVED/DENIED/EXPIRED/CANCELLED, 5-min timeout, context-cancel=CANCELLED |
+| AUD-10 | MEDIUM | Tool message role representation undefined | Fixed: role=assistant has tool_calls, role=user has tool_results (Anthropic wire format) |
+| AUD-11 | LOW | Context limit fallback 100K too high for small models | Fixed: 32K fallback (conservative) |
+| AUD-12 | LOW | Memory indexer rate limit key undefined | Fixed: per-session in-memory map[sessionID]time.Time |
