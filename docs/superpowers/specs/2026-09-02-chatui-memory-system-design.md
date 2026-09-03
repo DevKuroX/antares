@@ -160,7 +160,7 @@ before execution. In the agentic loop:
 
 ```
 1. Claude proposes tool call
-2. Server sends SSE event: {"type": "tool_approval_required", "tool": "terminal", "args": {...}}
+2. Server sends SSE event: {"type": "tool_approval_required", "tool_use_id": "toolu_...", "tool_name": "terminal", "input": {...}, "approval_id": "..."}
 3. Frontend shows approval dialog to user
 4. User approves → server executes → result injected into context
 5. User denies  → server injects tool_result with "User denied execution"
@@ -778,7 +778,8 @@ All under `/chatui/api/`, bypass `dash.Require`. Response: `{"data": T}` / `{"er
 ```
 GET    /chatui/api/sessions               list (limit, offset)
 POST   /chatui/api/sessions               create {title, model}
-GET    /chatui/api/sessions/:id           get + messages
+GET    /chatui/api/sessions/:id           get session metadata only (not messages)
+GET    /chatui/api/sessions/:id/messages  get messages for session
 PATCH  /chatui/api/sessions/:id           update {title, model, archived}
 -- tools_enabled is global only (see /chatui/api/settings)
 DELETE /chatui/api/sessions/:id           delete
@@ -792,12 +793,13 @@ POST   /chatui/api/chat/stream            SSE agentic loop
   SSE event types:
     {"type": "text_delta",              "delta": "..."}
     {"type": "thinking_delta",          "delta": "..."}
-    {"type": "tool_start",              "tool": "web_search", "args": {...}}
-    {"type": "tool_result",             "tool": "web_search", "result": "..."}
-    {"type": "tool_approval_required",  "tool": "terminal", "args": {...}, "approval_id": "..."}
+    {"type": "tool_start",              "tool_use_id": "toolu_...", "tool_name": "web_search", "input": {...}}
+    {"type": "tool_result",             "tool_use_id": "toolu_...", "tool_name": "web_search", "content": "...", "is_error": false}
+    {"type": "tool_approval_required",  "tool_use_id": "toolu_...", "tool_name": "terminal", "input": {...}, "approval_id": "..."}
     {"type": "compacted",               "removed": N, "summary_tokens": M}
     {"type": "done",                    "tokens_in": N, "tokens_out": N}
     {"type": "error",                   "message": "..."}
+  -- Note: field names (tool_use_id, tool_name, input, content) match Anthropic tool_use block fields for consistency.
 
 POST   /chatui/api/chat/approve/:approval_id   approve a pending tool call
 POST   /chatui/api/chat/deny/:approval_id      deny a pending tool call
