@@ -4,8 +4,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/enowdev/antares/internal/commands"
-	"github.com/enowdev/antares/internal/version"
+	"github.com/DevKuroX/antares/internal/commands"
+	"github.com/DevKuroX/antares/internal/version"
 )
 
 // commandDeps hands the shared command layer everything the server has wired.

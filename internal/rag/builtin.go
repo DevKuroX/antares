@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/enowdev/antares/internal/config"
-	"github.com/enowdev/antares/internal/store"
-	"github.com/enowdev/antares/internal/tools"
+	"github.com/DevKuroX/antares/internal/config"
+	"github.com/DevKuroX/antares/internal/store"
+	"github.com/DevKuroX/antares/internal/tools"
 )
 
 // builtinProvider embeds chunks with the configured model and stores the

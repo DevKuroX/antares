@@ -18,9 +18,9 @@ import (
 	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/enowdev/antares/internal/agent"
-	"github.com/enowdev/antares/internal/config"
-	"github.com/enowdev/antares/internal/store"
+	"github.com/DevKuroX/antares/internal/agent"
+	"github.com/DevKuroX/antares/internal/config"
+	"github.com/DevKuroX/antares/internal/store"
 )
 
 // blockKind distinguishes transcript entries so each renders in its own voice.

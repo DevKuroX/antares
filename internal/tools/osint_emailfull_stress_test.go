@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/enowdev/antares/internal/config"
+	"github.com/DevKuroX/antares/internal/config"
 )
 
 // TestEmailFullSolveStress measures the headless Turnstile solve rate. It runs

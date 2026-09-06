@@ -14,8 +14,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/enowdev/antares/internal/config"
-	"github.com/enowdev/antares/internal/version"
+	"github.com/DevKuroX/antares/internal/config"
+	"github.com/DevKuroX/antares/internal/version"
 )
 
 var (

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/enowdev/antares/internal/engagement"
+	"github.com/DevKuroX/antares/internal/engagement"
 )
 
 // addIntelTool records a discovered fact into the engagement's intel ledger.

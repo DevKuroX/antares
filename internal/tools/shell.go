@@ -16,9 +16,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/enowdev/antares/internal/config"
-	"github.com/enowdev/antares/internal/sandbox"
-	"github.com/enowdev/antares/internal/textutil"
+	"github.com/DevKuroX/antares/internal/config"
+	"github.com/DevKuroX/antares/internal/sandbox"
+	"github.com/DevKuroX/antares/internal/textutil"
 )
 
 // ShellManager owns one long-lived shell per session so `cd`, exported

@@ -23,7 +23,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/enowdev/antares/internal/browser"
+	"github.com/DevKuroX/antares/internal/browser"
 )
 
 var executorLog = Log.Create("hackbrowser:executor")

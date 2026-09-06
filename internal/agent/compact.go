@@ -8,10 +8,10 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/enowdev/antares/internal/llm"
-	"github.com/enowdev/antares/internal/providers"
-	"github.com/enowdev/antares/internal/store"
-	"github.com/enowdev/antares/internal/textutil"
+	"github.com/DevKuroX/antares/internal/llm"
+	"github.com/DevKuroX/antares/internal/providers"
+	"github.com/DevKuroX/antares/internal/store"
+	"github.com/DevKuroX/antares/internal/textutil"
 )
 
 // contextWindowFor returns the active model's token budget for the usage event.

@@ -17,7 +17,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/enowdev/antares/internal/wsutil"
+	"github.com/DevKuroX/antares/internal/wsutil"
 )
 
 // Message is one CDP frame, either a reply to a command or an event.

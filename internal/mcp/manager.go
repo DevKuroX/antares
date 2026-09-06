@@ -10,10 +10,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/enowdev/antares/internal/hub"
+	"github.com/DevKuroX/antares/internal/hub"
 
-	"github.com/enowdev/antares/internal/config"
-	"github.com/enowdev/antares/internal/tools"
+	"github.com/DevKuroX/antares/internal/config"
+	"github.com/DevKuroX/antares/internal/tools"
 )
 
 // Manager owns the configured MCP servers and exposes their tools to the agent.

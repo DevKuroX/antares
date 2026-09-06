@@ -9,7 +9,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/enowdev/antares/internal/tools"
+	"github.com/DevKuroX/antares/internal/tools"
 )
 
 // uploadMaxBytes caps a single attachment so a huge file cannot exhaust disk or

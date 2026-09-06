@@ -12,7 +12,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/enowdev/antares/internal/textutil"
+	"github.com/DevKuroX/antares/internal/textutil"
 )
 
 // ---- glob -------------------------------------------------------------------

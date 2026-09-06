@@ -26,7 +26,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/enowdev/antares/internal/config"
+	"github.com/DevKuroX/antares/internal/config"
 )
 
 //go:embed data/*

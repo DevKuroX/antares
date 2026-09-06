@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/enowdev/antares/internal/config"
+	"github.com/DevKuroX/antares/internal/config"
 )
 
 // dashCookie is the name of the dashboard login session cookie.

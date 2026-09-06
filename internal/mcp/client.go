@@ -20,8 +20,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/enowdev/antares/internal/textutil"
-	"github.com/enowdev/antares/internal/version"
+	"github.com/DevKuroX/antares/internal/textutil"
+	"github.com/DevKuroX/antares/internal/version"
 )
 
 // protocolVersion is the revision Antares implements.

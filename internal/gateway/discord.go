@@ -13,9 +13,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/enowdev/antares/internal/config"
-	"github.com/enowdev/antares/internal/version"
-	"github.com/enowdev/antares/internal/wsutil"
+	"github.com/DevKuroX/antares/internal/config"
+	"github.com/DevKuroX/antares/internal/version"
+	"github.com/DevKuroX/antares/internal/wsutil"
 )
 
 const discordAPI = "https://discord.com/api/v10"
@@ -86,7 +86,7 @@ func (d *Discord) rest(ctx context.Context, method, path string, payload, out an
 		return err
 	}
 	req.Header.Set("Authorization", "Bot "+d.cfg.BotToken)
-	req.Header.Set("User-Agent", "DiscordBot (https://github.com/enowdev/antares, "+version.Version+")")
+	req.Header.Set("User-Agent", "DiscordBot (https://github.com/DevKuroX/antares, "+version.Version+")")
 	if payload != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}

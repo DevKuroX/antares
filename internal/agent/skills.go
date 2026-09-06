@@ -1,8 +1,8 @@
 package agent
 
 import (
-	"github.com/enowdev/antares/internal/skills"
-	"github.com/enowdev/antares/internal/tools"
+	"github.com/DevKuroX/antares/internal/skills"
+	"github.com/DevKuroX/antares/internal/tools"
 )
 
 // skillAdapter bridges the skills manager to the narrow interface tools use,

@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/enowdev/antares/internal/tools"
+	"github.com/DevKuroX/antares/internal/tools"
 )
 
 // A background task is a sub-agent that runs detached from the turn that

@@ -8,7 +8,7 @@ import (
 	"testing"
 	"unicode/utf8"
 
-	"github.com/enowdev/antares/internal/config"
+	"github.com/DevKuroX/antares/internal/config"
 )
 
 // Tool output is handed straight to the provider, so a cut that lands inside a

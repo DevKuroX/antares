@@ -6,7 +6,7 @@ import (
 	"github.com/charmbracelet/bubbles/textarea"
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/enowdev/antares/internal/config"
+	"github.com/DevKuroX/antares/internal/config"
 )
 
 // NewDemo builds a self-contained TUI seeded with representative content and no
@@ -56,7 +56,7 @@ func (m *Model) seedDemo() {
 		{kind: blockAssistant, done: true, text: "Here's the plan:\n\n- Thread `*token.Store` into `Authenticate`\n- Replace the empty-string check with a real `store.Verify` call\n- Put the verified subject on the request `context`\n\nLet me look at the code first."},
 		{kind: blockTool, title: "read_file  internal/auth/middleware.go", done: true, text: "func Authenticate(next http.Handler) http.Handler {\n    // ... 10 lines ...\n}"},
 		{kind: blockTool, title: "edit_file  internal/auth/middleware.go", done: true, text: "edited internal/auth/middleware.go (+5 -3)"},
-		{kind: blockTool, title: "terminal  go test ./internal/auth/...", done: true, text: "ok  \tgithub.com/enowdev/antares/internal/auth\t0.184s"},
+		{kind: blockTool, title: "terminal  go test ./internal/auth/...", done: true, text: "ok  \tgithub.com/DevKuroX/antares/internal/auth\t0.184s"},
 		{kind: blockAssistant, done: true, text: "Done. The middleware now verifies through the store, and the failure path is covered:\n\n```go\nfunc TestAuthenticate_RejectsBadToken(t *testing.T) {\n\treq := httptest.NewRequest(\"GET\", \"/\", nil)\n\treq.Header.Set(\"Authorization\", \"bad\")\n\t// ...\n}\n```\n\nAll tests pass. ✅"},
 	}
 }

@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/enowdev/antares/internal/config"
-	"github.com/enowdev/antares/internal/store"
+	"github.com/DevKuroX/antares/internal/config"
+	"github.com/DevKuroX/antares/internal/store"
 )
 
 // errNoStore and friends keep the "this is not wired up" message uniform.

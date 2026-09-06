@@ -5,9 +5,9 @@ import (
 	"log/slog"
 	"strings"
 
-	"github.com/enowdev/antares/internal/config"
-	"github.com/enowdev/antares/internal/tools"
-	"github.com/enowdev/antares/internal/worktree"
+	"github.com/DevKuroX/antares/internal/config"
+	"github.com/DevKuroX/antares/internal/tools"
+	"github.com/DevKuroX/antares/internal/worktree"
 )
 
 // prepareSubAgentWorkspace gives synchronous and background delegation identical

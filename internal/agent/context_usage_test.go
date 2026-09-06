@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/enowdev/antares/internal/config"
-	"github.com/enowdev/antares/internal/llm"
+	"github.com/DevKuroX/antares/internal/config"
+	"github.com/DevKuroX/antares/internal/llm"
 )
 
 func TestContextWindowForPrefersActiveModelMetadata(t *testing.T) {

@@ -13,7 +13,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/enowdev/antares/internal/config"
+	"github.com/DevKuroX/antares/internal/config"
 )
 
 // Matrix connects to a homeserver with an access token and long-polls /sync.

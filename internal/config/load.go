@@ -132,7 +132,7 @@ func writeFile(path string, cfg *Config) error {
 	if err != nil {
 		return err
 	}
-	header := "# Antares configuration\n# Docs: https://github.com/enowdev/antares\n"
+	header := "# Antares configuration\n# Docs: https://github.com/DevKuroX/antares\n"
 
 	// Serialise writes so two concurrent saves cannot interleave, and use a
 	// unique temp file so a rename can never pick up another writer's partial

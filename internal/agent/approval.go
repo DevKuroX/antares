@@ -9,8 +9,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/enowdev/antares/internal/llm"
-	"github.com/enowdev/antares/internal/tools"
+	"github.com/DevKuroX/antares/internal/llm"
+	"github.com/DevKuroX/antares/internal/tools"
 )
 
 // Approval gates tools that change something. `tools.approval_mode` decides

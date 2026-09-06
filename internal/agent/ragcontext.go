@@ -9,11 +9,11 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/enowdev/antares/internal/llm"
-	"github.com/enowdev/antares/internal/rag"
-	"github.com/enowdev/antares/internal/store"
-	"github.com/enowdev/antares/internal/textutil"
-	"github.com/enowdev/antares/internal/tools"
+	"github.com/DevKuroX/antares/internal/llm"
+	"github.com/DevKuroX/antares/internal/rag"
+	"github.com/DevKuroX/antares/internal/store"
+	"github.com/DevKuroX/antares/internal/textutil"
+	"github.com/DevKuroX/antares/internal/tools"
 )
 
 // projectIndexIgnore / projectIndexExt mirror the dashboard's project walk.

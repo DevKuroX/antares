@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/enowdev/antares/internal/llm"
-	"github.com/enowdev/antares/internal/store"
+	"github.com/DevKuroX/antares/internal/llm"
+	"github.com/DevKuroX/antares/internal/store"
 )
 
 // lessonSource marks memories that were learned from the agent's own mistakes,

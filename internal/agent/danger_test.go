@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/enowdev/antares/internal/llm"
-	"github.com/enowdev/antares/internal/tools"
+	"github.com/DevKuroX/antares/internal/llm"
+	"github.com/DevKuroX/antares/internal/tools"
 )
 
 // lookupTool resolves a tool from the process registry, so these tests fail if

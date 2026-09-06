@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/enowdev/antares/internal/cron"
-	"github.com/enowdev/antares/internal/store"
+	"github.com/DevKuroX/antares/internal/cron"
+	"github.com/DevKuroX/antares/internal/store"
 )
 
 // scheduleTool lets the agent set up its own recurring jobs — a morning brief, a

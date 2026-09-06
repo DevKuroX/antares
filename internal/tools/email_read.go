@@ -4,8 +4,8 @@ import (
 	"context"
 	"strings"
 
-	"github.com/enowdev/antares/internal/secret"
-	"github.com/enowdev/antares/internal/socialimap"
+	"github.com/DevKuroX/antares/internal/secret"
+	"github.com/DevKuroX/antares/internal/socialimap"
 )
 
 // emailReadTool lets the Social Media agent read the configured IMAP inbox for

@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/enowdev/antares/internal/config"
+	"github.com/DevKuroX/antares/internal/config"
 )
 
 // The Proxies API is a global proxy store: a list of named HTTP/SOCKS proxies,

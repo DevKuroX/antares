@@ -7,7 +7,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/enowdev/antares/internal/agent"
+	"github.com/DevKuroX/antares/internal/agent"
 )
 
 // The wake mechanism replaces the old "main agent polls its sub-agents" loop

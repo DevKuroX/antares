@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/enowdev/antares/internal/config"
+	"github.com/DevKuroX/antares/internal/config"
 )
 
 // TestEmailFullLive exercises the real Turnstile solve + SSE lookup end to end.

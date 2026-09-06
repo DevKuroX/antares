@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/enowdev/antares/internal/llm"
-	"github.com/enowdev/antares/internal/tools"
+	"github.com/DevKuroX/antares/internal/llm"
+	"github.com/DevKuroX/antares/internal/tools"
 )
 
 type stubTool struct{ name string }

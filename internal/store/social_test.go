@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/enowdev/antares/internal/secret"
+	"github.com/DevKuroX/antares/internal/secret"
 )
 
 func newSocialTestStore(t *testing.T) *sqlStore {

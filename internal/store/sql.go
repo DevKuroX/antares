@@ -14,7 +14,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/enowdev/antares/internal/secret"
+	"github.com/DevKuroX/antares/internal/secret"
 
 	_ "github.com/jackc/pgx/v5/stdlib" // postgres driver
 	_ "modernc.org/sqlite"             // pure-Go sqlite driver

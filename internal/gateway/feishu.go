@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/enowdev/antares/internal/config"
+	"github.com/DevKuroX/antares/internal/config"
 )
 
 const feishuAPI = "https://open.feishu.cn/open-apis"

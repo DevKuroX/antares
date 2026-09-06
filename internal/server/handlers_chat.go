@@ -13,10 +13,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/enowdev/antares/internal/agent"
-	"github.com/enowdev/antares/internal/llm"
-	"github.com/enowdev/antares/internal/store"
-	"github.com/enowdev/antares/internal/version"
+	"github.com/DevKuroX/antares/internal/agent"
+	"github.com/DevKuroX/antares/internal/llm"
+	"github.com/DevKuroX/antares/internal/store"
+	"github.com/DevKuroX/antares/internal/version"
 )
 
 var errNotFound = errors.New("not found")

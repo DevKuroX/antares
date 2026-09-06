@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/enowdev/antares/internal/config"
-	"github.com/enowdev/antares/internal/tools"
+	"github.com/DevKuroX/antares/internal/config"
+	"github.com/DevKuroX/antares/internal/tools"
 )
 
 func TestPrepareSubAgentWorkspaceInheritsParentProject(t *testing.T) {

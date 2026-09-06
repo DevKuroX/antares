@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/enowdev/antares/internal/engagement"
-	"github.com/enowdev/antares/internal/store"
+	"github.com/DevKuroX/antares/internal/engagement"
+	"github.com/DevKuroX/antares/internal/store"
 )
 
 // handleEngagementReport renders a session's security findings (plus recorded

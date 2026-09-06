@@ -13,15 +13,15 @@ import (
 	"sync"
 	"time"
 
-	"github.com/enowdev/antares/internal/checkpoint"
-	"github.com/enowdev/antares/internal/engagement"
-	"github.com/enowdev/antares/internal/findings"
-	"github.com/enowdev/antares/internal/llm"
-	"github.com/enowdev/antares/internal/plugin"
-	"github.com/enowdev/antares/internal/roleperf"
-	"github.com/enowdev/antares/internal/roles"
-	"github.com/enowdev/antares/internal/store"
-	"github.com/enowdev/antares/internal/tools"
+	"github.com/DevKuroX/antares/internal/checkpoint"
+	"github.com/DevKuroX/antares/internal/engagement"
+	"github.com/DevKuroX/antares/internal/findings"
+	"github.com/DevKuroX/antares/internal/llm"
+	"github.com/DevKuroX/antares/internal/plugin"
+	"github.com/DevKuroX/antares/internal/roleperf"
+	"github.com/DevKuroX/antares/internal/roles"
+	"github.com/DevKuroX/antares/internal/store"
+	"github.com/DevKuroX/antares/internal/tools"
 )
 
 // The harness is everything around the model call that makes a long run

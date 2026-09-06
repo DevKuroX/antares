@@ -12,9 +12,9 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/enowdev/antares/internal/agent"
-	"github.com/enowdev/antares/internal/commands"
-	"github.com/enowdev/antares/internal/store"
+	"github.com/DevKuroX/antares/internal/agent"
+	"github.com/DevKuroX/antares/internal/commands"
+	"github.com/DevKuroX/antares/internal/store"
 	"golang.org/x/term"
 )
 

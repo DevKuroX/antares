@@ -7,10 +7,10 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/enowdev/antares/internal/agent"
-	"github.com/enowdev/antares/internal/autopilot"
-	"github.com/enowdev/antares/internal/config"
-	"github.com/enowdev/antares/internal/worktree"
+	"github.com/DevKuroX/antares/internal/agent"
+	"github.com/DevKuroX/antares/internal/autopilot"
+	"github.com/DevKuroX/antares/internal/config"
+	"github.com/DevKuroX/antares/internal/worktree"
 )
 
 // autopilotRunning guards against two run requests processing the same queue at

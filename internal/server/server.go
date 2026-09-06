@@ -19,15 +19,15 @@ import (
 	"sync"
 	"time"
 
-	"github.com/enowdev/antares/internal/agent"
-	"github.com/enowdev/antares/internal/config"
-	"github.com/enowdev/antares/internal/cron"
-	"github.com/enowdev/antares/internal/gateway"
-	"github.com/enowdev/antares/internal/mcp"
-	"github.com/enowdev/antares/internal/skills"
-	"github.com/enowdev/antares/internal/socialbrowser"
-	"github.com/enowdev/antares/internal/store"
-	"github.com/enowdev/antares/internal/version"
+	"github.com/DevKuroX/antares/internal/agent"
+	"github.com/DevKuroX/antares/internal/config"
+	"github.com/DevKuroX/antares/internal/cron"
+	"github.com/DevKuroX/antares/internal/gateway"
+	"github.com/DevKuroX/antares/internal/mcp"
+	"github.com/DevKuroX/antares/internal/skills"
+	"github.com/DevKuroX/antares/internal/socialbrowser"
+	"github.com/DevKuroX/antares/internal/store"
+	"github.com/DevKuroX/antares/internal/version"
 )
 
 // Server wires the API handlers to the agent and store.

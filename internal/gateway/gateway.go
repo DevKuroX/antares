@@ -13,8 +13,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/enowdev/antares/internal/config"
-	"github.com/enowdev/antares/internal/store"
+	"github.com/DevKuroX/antares/internal/config"
+	"github.com/DevKuroX/antares/internal/store"
 )
 
 // InboundMessage is one message received from a platform.

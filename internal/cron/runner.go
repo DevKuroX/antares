@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/enowdev/antares/internal/store"
+	"github.com/DevKuroX/antares/internal/store"
 )
 
 // Executor runs one scheduled job's prompt and returns its final reply.

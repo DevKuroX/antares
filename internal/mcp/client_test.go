@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/enowdev/antares/internal/config"
-	"github.com/enowdev/antares/internal/tools"
+	"github.com/DevKuroX/antares/internal/config"
+	"github.com/DevKuroX/antares/internal/tools"
 )
 
 // TestStdioRoundTrip runs this test binary as a fake MCP server (see

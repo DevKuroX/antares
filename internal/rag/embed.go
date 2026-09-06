@@ -10,9 +10,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/enowdev/antares/internal/config"
-	"github.com/enowdev/antares/internal/llm"
-	"github.com/enowdev/antares/internal/version"
+	"github.com/DevKuroX/antares/internal/config"
+	"github.com/DevKuroX/antares/internal/llm"
+	"github.com/DevKuroX/antares/internal/version"
 )
 
 // embedder turns text into vectors for the store. It abstracts over the two

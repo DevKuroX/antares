@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/enowdev/antares/internal/config"
+	"github.com/DevKuroX/antares/internal/config"
 )
 
 // helperClient connects to the in-process stdio fixture (see TestHelperServer).

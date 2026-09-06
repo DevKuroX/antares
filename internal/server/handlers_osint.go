@@ -4,8 +4,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/enowdev/antares/internal/config"
-	"github.com/enowdev/antares/internal/tools"
+	"github.com/DevKuroX/antares/internal/config"
+	"github.com/DevKuroX/antares/internal/tools"
 )
 
 // handleGoogleVerify checks whether the configured (or a supplied) Google

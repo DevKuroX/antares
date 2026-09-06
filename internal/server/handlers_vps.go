@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/enowdev/antares/internal/store"
-	"github.com/enowdev/antares/internal/vps"
+	"github.com/DevKuroX/antares/internal/store"
+	"github.com/DevKuroX/antares/internal/vps"
 )
 
 // The VPS API stores servers (SSH credentials encrypted at rest by the store)

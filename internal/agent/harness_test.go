@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/enowdev/antares/internal/llm"
+	"github.com/DevKuroX/antares/internal/llm"
 )
 
 func TestRepeatTrackerTripsOnIdenticalCalls(t *testing.T) {

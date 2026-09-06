@@ -10,9 +10,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/enowdev/antares/internal/config"
-	"github.com/enowdev/antares/internal/llm"
-	"github.com/enowdev/antares/internal/store"
+	"github.com/DevKuroX/antares/internal/config"
+	"github.com/DevKuroX/antares/internal/llm"
+	"github.com/DevKuroX/antares/internal/store"
 )
 
 // setupProvider is one option in the onboarding picker. The catalogue lives

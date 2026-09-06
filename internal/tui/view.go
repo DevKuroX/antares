@@ -8,7 +8,7 @@ import (
 	"github.com/charmbracelet/glamour"
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/enowdev/antares/internal/version"
+	"github.com/DevKuroX/antares/internal/version"
 )
 
 const minSidebar = 74 // hide the sidebar below this width

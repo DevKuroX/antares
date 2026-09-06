@@ -10,8 +10,8 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/enowdev/antares/internal/store"
-	"github.com/enowdev/antares/internal/version"
+	"github.com/DevKuroX/antares/internal/store"
+	"github.com/DevKuroX/antares/internal/version"
 )
 
 // Command is one slash command.

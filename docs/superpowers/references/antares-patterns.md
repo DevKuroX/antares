@@ -3,11 +3,244 @@
 **Purpose:** Source-of-truth patterns borrowed from Antares for enowX ChatUI
 implementation. Read this before touching any ChatUI backend code.
 
-**Source:** `/home/arch/workspace/antares/internal/store/` and
-`/home/arch/workspace/antares/internal/agent/ragcontext.go`
+**Source:** `/home/arch/workspace/antares/internal/store/`,
+`/home/arch/workspace/antares/internal/agent/ragcontext.go`,
+`/home/arch/workspace/antares/internal/tools/`
 
 **Rule:** We do NOT import Antares as a Go module. We copy the patterns and
 write our own implementation. This doc is the bridge.
+
+---
+
+## 10. Antares Tool Registry — Full Tool List
+
+**Source:** `internal/tools/register.go` + `internal/tools/registry.go`
+
+### All registered tools (as of 2026-09-03)
+
+| Tool name | Category | Requires approval | Notes |
+|---|---|---|---|
+| `read_file` | Files | No | |
+| `write_file` | Files | Yes | Mutates |
+| `edit_file` | Files | Yes | Mutates |
+| `list_files` | Files | No | |
+| `glob` | Files | No | |
+| `grep` | Files | No | |
+| `read_document` | Files | No | PDF/DOCX reader |
+| `terminal` | Shell | Yes | Spawns shell |
+| `process` | Shell | No | Job control companion for terminal |
+| `web_search` | Web | No | |
+| `web_fetch` | Web | No | |
+| `http_request` | Web | No | Raw HTTP, custom headers |
+| `browser` | Web | No | Stealth browser (Playwright) |
+| `memory` | Memory | No | Read/write persistent facts |
+| `session_search` | Memory | No | FTS over past sessions |
+| `rag_search` | Memory | No | Embedding search over RAG chunks |
+| `rag_index` | Memory | No | Index a doc into RAG |
+| `todo` | Productivity | No | Checklist tracker |
+| `board` | Productivity | No | Kanban board |
+| `task` | Productivity | No | Background task polling |
+| `project_info` | Productivity | No | Project metadata |
+| `set_soul` | Productivity | No | Change agent persona |
+| `skill` | Skills | No | List/search/read/save procedures |
+| `delegate_task` | Delegation | No | Spawn sub-agent |
+| `list_roles` | Delegation | No | List available specialist roles |
+| `ask_user` | Interaction | No | Blocks turn to ask user |
+| `schedule` | Automation | No | Schedule future agent runs |
+| `diagnostics` | Debugging | No | |
+| `view_image` | Vision | No | |
+| `image_generate` | Vision | No | |
+| `speak` | Audio | No | TTS |
+| `transcribe` | Audio | No | STT |
+| `computer` | Desktop | Yes | Screen control |
+| `report_finding` | Security | No | |
+| `triage_finding` | Security | No | |
+| `add_intel` | Security | No | |
+| `methodology_status` | Security | No | |
+| `check_dependencies` | Security | No | Prereq gate |
+| `intercept` | Security/Proxy | Yes | MITM intercept proxy |
+| `hackbrowser` | Security | Yes | Autonomous web crawler |
+| `solve_captcha` | Security | Yes | |
+| `vps_run` | VPS | Yes | SSH remote exec |
+| `vps_upload` | VPS | Yes | SFTP upload |
+| `vps_download` | VPS | No | SFTP download |
+| `list_proxies` | Network | No | |
+| `email_read` | Social | No | IMAP inbox |
+| `temp_mail` | Social | No | Disposable inbox |
+| `social_browser` | Social | No | Persistent social browser |
+| `social_account` | Social | No | Saved social accounts |
+| `osint_dns` | OSINT | No | |
+| `osint_dorks` | OSINT | No | |
+| `osint_dorks_live` | OSINT | No | |
+| `osint_whois` | OSINT | No | |
+| `osint_ip` | OSINT | No | |
+| `osint_username` | OSINT | No | |
+| `osint_github` | OSINT | No | |
+| `osint_email` | OSINT | No | |
+| `osint_email_full` | OSINT | No | |
+| `osint_breach` | OSINT | No | |
+| `osint_shodan` | OSINT | No | |
+| `osint_reputation` | OSINT | No | |
+| `osint_crypto` | OSINT | No | |
+| `osint_domain` | OSINT | No | |
+| `osint_phone` | OSINT | No | |
+| `osint_scrape` | OSINT | No | |
+| `osint_paste` | OSINT | No | |
+| `osint_footprint` | OSINT | No | |
+| `osint_pivot` | OSINT | No | |
+| `osint_google` | OSINT | No | |
+| `re_info` | Reverse Engineering | No | |
+| `re_strings` | Reverse Engineering | No | |
+| `re_analyze` | Reverse Engineering | No | |
+| `re_decompile` | Reverse Engineering | No | |
+| `attack_script` | Offensive | Yes | Bundled Python/PS exploit scripts |
+| `awshook` | Offensive | Yes | AWS post-exploitation |
+| `azurehook` | Offensive | Yes | Azure post-exploitation |
+| `kubehook` | Offensive | Yes | K8s post-exploitation |
+| `winhook` | Offensive/Windows | Yes | Windows only |
+| `machook` | Offensive/macOS | Yes | macOS only |
+| `cipipe` | Offensive | Yes | CI/CD pipeline exploits |
+| `ebpf` | Offensive/Linux | Yes | Linux only, requires root |
+
+**Total: ~78 tools** (not counting dynamic MCP tools prefixed `mcp__`)
+
+### Toolset presets
+
+| Preset | Purpose | Key tools |
+|---|---|---|
+| `none` | No tools | — |
+| `minimal` | Read-only file access | read_file, list_files, grep, todo |
+| `coding` | Full dev workflow | files, terminal, browser, delegate, schedule |
+| `research` | Web + memory + rag | web, memory, rag, browser, delegate |
+| `browser` | Browser-first | browser, web, http_request, write_file |
+| `security` | Full offensive | all coding + all osint + offensive hooks |
+| `osint` | OSINT only | all osint_* + web + http |
+| `reverse` | RE tools | re_*, terminal, file tools |
+| `vibecoder` | Web dev | browser, terminal, files, web |
+| `intercept` | MITM proxy | intercept, browser, http_request |
+| `social` | Social media | social_*, email, browser, memory, rag |
+| `default` | Everything except offensive hooks | all tools minus attack_*/hook tools |
+| `all` | Literally everything | all registered tools |
+
+**ChatUI uses none of these presets.** ChatUI has its own 8-tool set:
+`web_search`, `web_fetch`, `read_file`, `list_files`, `grep`, `write_file`, `terminal`, `memory`.
+
+---
+
+## 11. Antares Skills System
+
+**Source:** `internal/tools/skill.go`, `docs/skills.md`
+
+### How skills work in Antares
+
+- Skills are **Markdown files with YAML front matter** stored in `~/.antares/skills/`
+- Only `name` + `description` go into the system prompt (catalogue)
+- Bodies are loaded on demand via the `skill` tool (`action=read`)
+- Agent can save new skills via `skill` tool (`action=save`)
+- `skill` tool supports: `list`, `search` (with CWE/tech/category filters), `read`, `chains`, `save`
+- `auto_create: true` in config → agent writes skill after solving something non-obvious
+
+### YAML front matter schema
+
+```yaml
+name: deploy-homeserver          # kebab-case, unique
+description: "When to use..."    # most important — drives retrieval
+tags: [deployment, ops]          # for browsing
+triggers: [deploy, ship]         # words that surface it
+enabled: true                    # false = on disk but not in prompt
+```
+
+### ChatUI vs Antares skills
+
+| Aspect | Antares | ChatUI |
+|---|---|---|
+| Storage | Markdown files in `~/.antares/skills/` | Markdown files in `$RUNTIME_DIR/chatui/skills/` |
+| Indexing | FTS5 + category + CWE filters | Loaded into memory on `Reload` |
+| Body loading | On-demand via `skill` tool | All loaded at startup |
+| Auto-create | Yes (`auto_create` config) | Not implemented |
+| Hub | Yes (`/skills install owner/repo`) | Not implemented |
+| Library | Thousands of security procedures | User-defined only |
+| `chains` | Yes (follow-on techniques) | Not implemented |
+
+---
+
+## 12. Antares Plugin System
+
+**Source:** `internal/tools/hooks.go`, `docs/plugins.md`
+
+### What a plugin is
+
+- External program in `~/.antares/plugins/<name>/plugin.yaml` + executable
+- Runs at lifecycle hooks, **not** as a tool the model calls directly
+- Protocol: **one JSON object on stdin → one JSON object on stdout**
+- Failure (crash/timeout/bad JSON) → logged and skipped, agent continues
+
+### plugin.yaml schema
+
+```yaml
+name: audit-log
+description: Append every terminal command to a file
+version: 1.0.0
+command: ./run.sh           # relative to plugin dir, or absolute/PATH
+args: []                    # extra argv
+hooks: [pre_tool_call]      # which events to receive
+timeout_ms: 2000            # default 5000
+env:
+  LOG_PATH: /var/log/audit.log
+```
+
+### Hooks
+
+| Hook | When | Can do |
+|---|---|---|
+| `pre_tool_call` | Before a tool runs | Deny, rewrite arguments |
+| `post_tool_call` | After it returns | Replace the result |
+| `session_start` | Conversation begins | Observe |
+| `session_end` | Conversation ends | Observe |
+| `turn_end` | After each completed turn | Observe |
+
+### Input/output protocol
+
+**stdin:**
+```json
+{
+  "event": "pre_tool_call",
+  "session_id": "ses_…",
+  "platform": "web",
+  "tool": "terminal",
+  "arguments": "{\"command\":\"rm -rf build\"}"
+}
+```
+
+**stdout (all fields optional, `{}` = no opinion):**
+```json
+{
+  "deny": false,
+  "reason": "",
+  "arguments": "",
+  "result": "",
+  "notice": ""
+}
+```
+
+### ChatUI vs Antares plugins
+
+| Aspect | Antares | ChatUI |
+|---|---|---|
+| Discovery | Directory scan (`~/.antares/plugins/`) | None — hardcoded 3 built-ins |
+| External programs | Yes (shell/Python/any executable) | No |
+| Hooks | 5 (pre/post tool, session start/end, turn_end) | 2 (before/after tool call) |
+| Deny+reason | Yes | Yes (`ApprovalGate`) |
+| Rewrite args | Yes | Yes (`ModifiedArgs` in `PluginDecision`) |
+| Replace result | Yes | Yes (AfterToolCall return value) |
+| Plugin toggle | Yes (per-plugin switch in UI) | Yes (KV `chatui.plugins_disabled`) |
+| External program | Yes | No — Go interface only |
+| Ordering | Name order | Registration order |
+
+**ChatUI built-in plugins (3):**
+1. `approval_gate` — blocks `requires_approval` tools until user approves/denies via UI
+2. `output_truncator` — caps tool output at per-tool token limits
+3. `web_fetch_cleaner` — strips HTML from web_fetch output
 
 ---
 

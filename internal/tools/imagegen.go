@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/enowdev/antares/internal/config"
+	"github.com/DevKuroX/antares/internal/config"
 )
 
 // imageGenerateTool turns a prompt into an image via an OpenAI-compatible

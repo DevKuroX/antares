@@ -7,10 +7,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/enowdev/antares/internal/config"
-	"github.com/enowdev/antares/internal/llm"
-	"github.com/enowdev/antares/internal/store"
-	"github.com/enowdev/antares/internal/tools"
+	"github.com/DevKuroX/antares/internal/config"
+	"github.com/DevKuroX/antares/internal/llm"
+	"github.com/DevKuroX/antares/internal/store"
+	"github.com/DevKuroX/antares/internal/tools"
 )
 
 func TestSplitForCompaction(t *testing.T) {

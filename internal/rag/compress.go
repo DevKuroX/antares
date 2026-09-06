@@ -5,7 +5,7 @@ import (
 	"encoding/hex"
 	"strings"
 
-	"github.com/enowdev/antares/internal/tools"
+	"github.com/DevKuroX/antares/internal/tools"
 )
 
 // dedupe drops near-duplicate results, keeping the first (highest-ranked)

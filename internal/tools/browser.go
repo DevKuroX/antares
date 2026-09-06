@@ -10,9 +10,9 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/enowdev/antares/internal/browser"
-	"github.com/enowdev/antares/internal/config"
-	"github.com/enowdev/antares/internal/textutil"
+	"github.com/DevKuroX/antares/internal/browser"
+	"github.com/DevKuroX/antares/internal/config"
+	"github.com/DevKuroX/antares/internal/textutil"
 )
 
 // browserSessions keeps one browser per conversation. A page that survives

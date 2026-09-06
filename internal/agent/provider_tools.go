@@ -3,8 +3,8 @@ package agent
 import (
 	"strings"
 
-	"github.com/enowdev/antares/internal/llm"
-	"github.com/enowdev/antares/internal/tools"
+	"github.com/DevKuroX/antares/internal/llm"
+	"github.com/DevKuroX/antares/internal/tools"
 )
 
 // antigravity renames tools that collide with Google built-ins on Sub2API's

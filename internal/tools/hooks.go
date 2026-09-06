@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/enowdev/antares/internal/hookpack"
+	"github.com/DevKuroX/antares/internal/hookpack"
 )
 
 // hookTool is one of the eight CyberStrike offensive-script wrappers

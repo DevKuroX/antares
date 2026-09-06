@@ -10,12 +10,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/enowdev/antares/internal/config"
-	"github.com/enowdev/antares/internal/gateway"
-	"github.com/enowdev/antares/internal/logx"
-	"github.com/enowdev/antares/internal/rag"
-	"github.com/enowdev/antares/internal/store"
-	"github.com/enowdev/antares/internal/tools"
+	"github.com/DevKuroX/antares/internal/config"
+	"github.com/DevKuroX/antares/internal/gateway"
+	"github.com/DevKuroX/antares/internal/logx"
+	"github.com/DevKuroX/antares/internal/rag"
+	"github.com/DevKuroX/antares/internal/store"
+	"github.com/DevKuroX/antares/internal/tools"
 )
 
 // ---- memory -----------------------------------------------------------------

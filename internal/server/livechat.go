@@ -5,7 +5,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/enowdev/antares/internal/agent"
+	"github.com/DevKuroX/antares/internal/agent"
 )
 
 // liveRun is an append-only log of one turn's events that any number of SSE

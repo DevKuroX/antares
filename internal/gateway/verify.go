@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/enowdev/antares/internal/version"
+	"github.com/DevKuroX/antares/internal/version"
 )
 
 // Identity is what a platform reports about the bot behind a token.
@@ -99,7 +99,7 @@ func discordGET(ctx context.Context, token, path string, out any) error {
 		return err
 	}
 	req.Header.Set("Authorization", "Bot "+strings.TrimSpace(token))
-	req.Header.Set("User-Agent", "DiscordBot (https://github.com/enowdev/antares, "+version.Version+")")
+	req.Header.Set("User-Agent", "DiscordBot (https://github.com/DevKuroX/antares, "+version.Version+")")
 	resp, err := verifyClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("cannot reach Discord: %w", err)
@@ -198,7 +198,7 @@ func verifyDiscord(ctx context.Context, token string) (*Identity, error) {
 		return nil, err
 	}
 	req.Header.Set("Authorization", "Bot "+token)
-	req.Header.Set("User-Agent", "DiscordBot (https://github.com/enowdev/antares, "+version.Version+")")
+	req.Header.Set("User-Agent", "DiscordBot (https://github.com/DevKuroX/antares, "+version.Version+")")
 
 	resp, err := verifyClient.Do(req)
 	if err != nil {

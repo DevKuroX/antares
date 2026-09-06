@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/enowdev/antares/internal/config"
-	"github.com/enowdev/antares/internal/hub"
+	"github.com/DevKuroX/antares/internal/config"
+	"github.com/DevKuroX/antares/internal/hub"
 )
 
 // skillDir is where an installed skill is written.

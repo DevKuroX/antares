@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/enowdev/antares/internal/config"
-	"github.com/enowdev/antares/internal/llm"
+	"github.com/DevKuroX/antares/internal/config"
+	"github.com/DevKuroX/antares/internal/llm"
 )
 
 // FetchModels queries a provider's /models endpoint for the model ids it offers,

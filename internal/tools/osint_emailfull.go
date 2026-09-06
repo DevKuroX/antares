@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/enowdev/antares/internal/browser"
-	"github.com/enowdev/antares/internal/config"
+	"github.com/DevKuroX/antares/internal/browser"
+	"github.com/DevKuroX/antares/internal/config"
 )
 
 // osint_email_full drives emailosint.org's own investigation engine: it resolves

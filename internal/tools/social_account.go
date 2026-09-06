@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/enowdev/antares/internal/secret"
-	"github.com/enowdev/antares/internal/store"
+	"github.com/DevKuroX/antares/internal/secret"
+	"github.com/DevKuroX/antares/internal/store"
 )
 
 // socialAccountTool lets the agent save and list social media accounts with

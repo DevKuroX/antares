@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/enowdev/antares/internal/board"
+	"github.com/DevKuroX/antares/internal/board"
 )
 
 // boardTool is a Kanban board: cards laid out across columns the agent moves

@@ -10,7 +10,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"github.com/enowdev/antares/internal/providers"
+	"github.com/DevKuroX/antares/internal/providers"
 )
 
 // ---- theme picker ------------------------------------------------------------

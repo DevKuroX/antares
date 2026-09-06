@@ -11,11 +11,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/enowdev/antares/internal/config"
-	"github.com/enowdev/antares/internal/llm"
-	"github.com/enowdev/antares/internal/textutil"
-	"github.com/enowdev/antares/internal/tools"
-	"github.com/enowdev/antares/internal/version"
+	"github.com/DevKuroX/antares/internal/config"
+	"github.com/DevKuroX/antares/internal/llm"
+	"github.com/DevKuroX/antares/internal/textutil"
+	"github.com/DevKuroX/antares/internal/tools"
+	"github.com/DevKuroX/antares/internal/version"
 )
 
 // reranker reorders recalled candidates by relevance to the query, returning at

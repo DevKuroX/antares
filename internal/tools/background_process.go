@@ -13,7 +13,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/enowdev/antares/internal/sandbox"
+	"github.com/DevKuroX/antares/internal/sandbox"
 )
 
 const (

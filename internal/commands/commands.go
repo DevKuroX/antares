@@ -9,11 +9,11 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/enowdev/antares/internal/agent"
-	"github.com/enowdev/antares/internal/config"
-	"github.com/enowdev/antares/internal/mcp"
-	"github.com/enowdev/antares/internal/skills"
-	"github.com/enowdev/antares/internal/store"
+	"github.com/DevKuroX/antares/internal/agent"
+	"github.com/DevKuroX/antares/internal/config"
+	"github.com/DevKuroX/antares/internal/mcp"
+	"github.com/DevKuroX/antares/internal/skills"
+	"github.com/DevKuroX/antares/internal/store"
 )
 
 // Surface is where a command was typed. Some commands only make sense in one

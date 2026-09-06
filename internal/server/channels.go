@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/enowdev/antares/internal/config"
-	"github.com/enowdev/antares/internal/gateway"
+	"github.com/DevKuroX/antares/internal/config"
+	"github.com/DevKuroX/antares/internal/gateway"
 )
 
 // channelField describes one credential input a channel needs.

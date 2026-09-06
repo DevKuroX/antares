@@ -6,8 +6,8 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/enowdev/antares/internal/config"
-	"github.com/enowdev/antares/internal/store"
+	"github.com/DevKuroX/antares/internal/config"
+	"github.com/DevKuroX/antares/internal/store"
 )
 
 // Autopilot manages the Social Media agent's autonomous scheduling. When

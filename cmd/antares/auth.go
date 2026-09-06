@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/enowdev/antares/internal/llm"
+	"github.com/DevKuroX/antares/internal/llm"
 )
 
 // cmdAuth handles interactive provider sign-in flows.

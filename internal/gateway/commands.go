@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/enowdev/antares/internal/commands"
-	"github.com/enowdev/antares/internal/version"
+	"github.com/DevKuroX/antares/internal/commands"
+	"github.com/DevKuroX/antares/internal/version"
 )
 
 // jsonBody marshals v to a reader for an HTTP request body.
@@ -80,7 +80,7 @@ func discordAppIDDecode(ctx context.Context, token string) (string, error) {
 		return "", err
 	}
 	req.Header.Set("Authorization", "Bot "+strings.TrimSpace(token))
-	req.Header.Set("User-Agent", "DiscordBot (https://github.com/enowdev/antares, "+version.Version+")")
+	req.Header.Set("User-Agent", "DiscordBot (https://github.com/DevKuroX/antares, "+version.Version+")")
 	resp, err := verifyClient.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("cannot reach Discord: %w", err)
@@ -136,7 +136,7 @@ func discordJSON(ctx context.Context, token, method, path string, body any) erro
 	}
 	req.Header.Set("Authorization", "Bot "+strings.TrimSpace(token))
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("User-Agent", "DiscordBot (https://github.com/enowdev/antares, "+version.Version+")")
+	req.Header.Set("User-Agent", "DiscordBot (https://github.com/DevKuroX/antares, "+version.Version+")")
 	resp, err := verifyClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("cannot reach Discord: %w", err)

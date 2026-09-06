@@ -5,7 +5,7 @@ import (
 	"testing"
 	"unicode/utf8"
 
-	"github.com/enowdev/antares/internal/llm"
+	"github.com/DevKuroX/antares/internal/llm"
 )
 
 // A user message interleaved between an assistant's tool_calls and their

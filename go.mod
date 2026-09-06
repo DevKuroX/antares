@@ -1,4 +1,4 @@
-module github.com/enowdev/antares
+module github.com/DevKuroX/antares
 
 go 1.26.3
 

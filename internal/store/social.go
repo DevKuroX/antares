@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"time"
 
-	"github.com/enowdev/antares/internal/secret"
+	"github.com/DevKuroX/antares/internal/secret"
 )
 
 const socialAccountCols = `id,platform,display_name,username,encrypted_password,encrypted_recovery,profile_url,status,rag_namespace,skill_name,last_checked_at,created_at,updated_at`

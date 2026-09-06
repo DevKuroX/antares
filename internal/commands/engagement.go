@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/enowdev/antares/internal/engagement"
+	"github.com/DevKuroX/antares/internal/engagement"
 )
 
 // cmdEngagement shows the assessment's progress: the phases, their evidence,

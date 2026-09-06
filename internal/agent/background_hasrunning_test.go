@@ -3,7 +3,7 @@ package agent
 import (
 	"testing"
 
-	"github.com/enowdev/antares/internal/tools"
+	"github.com/DevKuroX/antares/internal/tools"
 )
 
 func TestBGManagerHasRunning(t *testing.T) {

@@ -38,7 +38,7 @@ func (c *openAIClient) headers() map[string]string {
 		}
 	}
 	if strings.Contains(c.opts.BaseURL, "openrouter.ai") {
-		h["HTTP-Referer"] = "https://github.com/enowdev/antares"
+		h["HTTP-Referer"] = "https://github.com/DevKuroX/antares"
 		h["X-Title"] = "Antares"
 	}
 	return h

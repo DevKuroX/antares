@@ -6,9 +6,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/enowdev/antares/internal/config"
-	"github.com/enowdev/antares/internal/hackbrowser"
-	"github.com/enowdev/antares/internal/llm"
+	"github.com/DevKuroX/antares/internal/config"
+	"github.com/DevKuroX/antares/internal/hackbrowser"
+	"github.com/DevKuroX/antares/internal/llm"
 )
 
 // hackbrowserTool is the agent-callable wrapper around the hackbrowser

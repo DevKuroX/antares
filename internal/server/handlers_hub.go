@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/enowdev/antares/internal/config"
-	"github.com/enowdev/antares/internal/hub"
+	"github.com/DevKuroX/antares/internal/config"
+	"github.com/DevKuroX/antares/internal/hub"
 )
 
 // skillDir is where installed skills land: the first configured directory,

@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/enowdev/antares/internal/agent"
-	"github.com/enowdev/antares/internal/hub"
+	"github.com/DevKuroX/antares/internal/agent"
+	"github.com/DevKuroX/antares/internal/hub"
 )
 
 // cmdGoal sets, inspects, or clears the standing goal for a session. A goal

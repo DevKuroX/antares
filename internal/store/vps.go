@@ -6,7 +6,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/enowdev/antares/internal/secret"
+	"github.com/DevKuroX/antares/internal/secret"
 )
 
 const vpsCols = `id,label,host,port,username,auth_method,password,private_key,passphrase,host_key,created_at,updated_at`

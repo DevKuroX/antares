@@ -23,8 +23,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/enowdev/antares/internal/browser"
-	"github.com/enowdev/antares/internal/llm"
+	"github.com/DevKuroX/antares/internal/browser"
+	"github.com/DevKuroX/antares/internal/llm"
 )
 
 // RunCrawl is the single public entry point. It is blocking — the caller

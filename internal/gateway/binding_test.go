@@ -3,7 +3,7 @@ package gateway
 import (
 	"testing"
 
-	"github.com/enowdev/antares/internal/config"
+	"github.com/DevKuroX/antares/internal/config"
 )
 
 func TestResolveBindingSpecificity(t *testing.T) {

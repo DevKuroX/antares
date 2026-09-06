@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/enowdev/antares/internal/config"
-	"github.com/enowdev/antares/internal/gateway"
+	"github.com/DevKuroX/antares/internal/config"
+	"github.com/DevKuroX/antares/internal/gateway"
 )
 
 // handleDiscordGuilds lists the servers the Discord bot belongs to, so the

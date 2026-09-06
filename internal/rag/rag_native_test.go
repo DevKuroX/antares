@@ -3,7 +3,7 @@ package rag
 import (
 	"testing"
 
-	"github.com/enowdev/antares/internal/tools"
+	"github.com/DevKuroX/antares/internal/tools"
 )
 
 func TestDedupeCollapsesIdenticalContent(t *testing.T) {

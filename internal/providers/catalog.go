@@ -6,7 +6,7 @@ package providers
 import (
 	"os"
 
-	"github.com/enowdev/antares/internal/config"
+	"github.com/DevKuroX/antares/internal/config"
 )
 
 // Info describes a provider users can connect to in one step.

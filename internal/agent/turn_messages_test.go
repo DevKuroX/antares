@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/enowdev/antares/internal/llm"
+	"github.com/DevKuroX/antares/internal/llm"
 )
 
 func toolOutcomes(ids ...string) []toolOutcome {

@@ -4,7 +4,7 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/enowdev/antares/internal/llm"
+	"github.com/DevKuroX/antares/internal/llm"
 )
 
 // The guard has two jobs: nudge a model that is repeating itself, and stop one

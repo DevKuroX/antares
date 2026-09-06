@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/enowdev/antares/internal/agent"
+	"github.com/DevKuroX/antares/internal/agent"
 )
 
 // handleSwarmStream pushes the set of running sub-agents to the browser over

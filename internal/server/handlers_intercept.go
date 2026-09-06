@@ -5,9 +5,9 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/enowdev/antares/internal/config"
-	"github.com/enowdev/antares/internal/intercept"
-	"github.com/enowdev/antares/internal/tools"
+	"github.com/DevKuroX/antares/internal/config"
+	"github.com/DevKuroX/antares/internal/intercept"
+	"github.com/DevKuroX/antares/internal/tools"
 )
 
 // The intercept proxy is a process-wide singleton shared with the agent tool.

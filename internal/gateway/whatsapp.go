@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/enowdev/antares/internal/config"
+	"github.com/DevKuroX/antares/internal/config"
 )
 
 const whatsappGraph = "https://graph.facebook.com/v20.0"

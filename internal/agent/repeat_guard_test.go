@@ -3,7 +3,7 @@ package agent
 import (
 	"testing"
 
-	"github.com/enowdev/antares/internal/llm"
+	"github.com/DevKuroX/antares/internal/llm"
 )
 
 func TestRepeatKeyDistinguishesDifferentArguments(t *testing.T) {

@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/enowdev/antares/internal/agent"
-	"github.com/enowdev/antares/internal/config"
+	"github.com/DevKuroX/antares/internal/agent"
+	"github.com/DevKuroX/antares/internal/config"
 )
 
 // fakeOpenAI serves GET /v1/models the way an OpenAI-compatible endpoint does,

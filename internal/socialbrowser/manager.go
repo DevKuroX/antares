@@ -14,7 +14,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/enowdev/antares/internal/config"
+	"github.com/DevKuroX/antares/internal/config"
 )
 
 // State describes the browser's current runtime status.

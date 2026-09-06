@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/enowdev/antares/internal/config"
+	"github.com/DevKuroX/antares/internal/config"
 )
 
 func TestDashSessionsSurviveRestart(t *testing.T) {

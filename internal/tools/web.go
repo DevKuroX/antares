@@ -12,9 +12,9 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/enowdev/antares/internal/config"
-	"github.com/enowdev/antares/internal/textutil"
-	"github.com/enowdev/antares/internal/version"
+	"github.com/DevKuroX/antares/internal/config"
+	"github.com/DevKuroX/antares/internal/textutil"
+	"github.com/DevKuroX/antares/internal/version"
 )
 
 var webClient = &http.Client{Timeout: 60 * time.Second}
@@ -66,7 +66,7 @@ func (webFetchTool) Execute(ctx context.Context, in Input) Result {
 	if err != nil {
 		return Errorf("%v", err)
 	}
-	req.Header.Set("User-Agent", version.UserAgent()+" (+https://github.com/enowdev/antares)")
+	req.Header.Set("User-Agent", version.UserAgent()+" (+https://github.com/DevKuroX/antares)")
 	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/json,text/plain;q=0.9,*/*;q=0.8")
 
 	resp, err := webClient.Do(req)

@@ -7,11 +7,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/enowdev/antares/internal/config"
-	"github.com/enowdev/antares/internal/cron"
-	"github.com/enowdev/antares/internal/mcp"
-	"github.com/enowdev/antares/internal/skills"
-	"github.com/enowdev/antares/internal/store"
+	"github.com/DevKuroX/antares/internal/config"
+	"github.com/DevKuroX/antares/internal/cron"
+	"github.com/DevKuroX/antares/internal/mcp"
+	"github.com/DevKuroX/antares/internal/skills"
+	"github.com/DevKuroX/antares/internal/store"
 )
 
 var (

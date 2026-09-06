@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/enowdev/antares/internal/config"
+	"github.com/DevKuroX/antares/internal/config"
 )
 
 func TestBundledCatalogueLoads(t *testing.T) {

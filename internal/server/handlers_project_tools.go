@@ -12,8 +12,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/enowdev/antares/internal/rag"
-	"github.com/enowdev/antares/internal/tools"
+	"github.com/DevKuroX/antares/internal/rag"
+	"github.com/DevKuroX/antares/internal/tools"
 )
 
 // projectRAGIgnoreDirs are directories skipped when indexing a project.
